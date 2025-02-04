@@ -10,6 +10,7 @@ import (
 	"pysio.online/Files-API/internal/config"
 	"pysio.online/Files-API/internal/handler"
 	"pysio.online/Files-API/internal/logger"
+	"pysio.online/Files-API/internal/middleware"
 	"pysio.online/Files-API/internal/service"
 )
 
@@ -46,6 +47,30 @@ func startSyncWorkers(numWorkers int) chan<- syncTask {
 }
 
 func main() {
+	// 解析命令行参数
+	flags := middleware.ParseFlags()
+
+	// 显示帮助信息
+	if flags.Help {
+		flag.Usage()
+		return
+	}
+
+	// 处理日志压缩/解压命令
+	if flags.ZipLogs {
+		if err := middleware.CompressLogs("logs"); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+
+	if flags.UnzipLogs {
+		if err := middleware.UncompressLogs("logs"); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+
 	// 加载配置文件
 	cfg, err := config.LoadConfig("config.yaml")
 	if err != nil {
@@ -58,10 +83,6 @@ func main() {
 		log.Fatalf("初始化日志系统失败: %v", err)
 	}
 	defer logManager.Close()
-
-	// 添加命令行参数
-	skipInitialSync := flag.Bool("skip", false, "跳过首次同步，等待下一个检查周期")
-	flag.Parse()
 
 	log.Printf("配置文件加载成功")
 
@@ -83,8 +104,25 @@ func main() {
 	// 启动同步工作池
 	taskChan := startSyncWorkers(2) // 使用2个工作线程
 
-	// 根据 skip 参数决定是否执行初始同步
-	if !*skipInitialSync {
+	// 处理单次同步命令
+	if flags.Sync {
+		log.Printf("执行单次同步检查...")
+		for _, repo := range cfg.Git.Repositories {
+			log.Printf("同步仓库: %s", repo.URL)
+			if err := gitService.SyncRepository(&repo); err != nil {
+				log.Printf("同步仓库失败 %s: %v", repo.URL, err)
+				continue
+			}
+			if err := minioService.UploadDirectory(repo.LocalPath, repo.MinioPath, 0); err != nil {
+				log.Printf("上传到Minio失败 %s: %v", repo.MinioPath, err)
+			}
+		}
+		log.Printf("单次同步检查完成")
+		return
+	}
+
+	// 使用 flags.Skip 替代原有的 skipInitialSync
+	if !flags.Skip {
 		log.Printf("开始初始同步...")
 		for _, repo := range cfg.Git.Repositories {
 			taskChan <- syncTask{

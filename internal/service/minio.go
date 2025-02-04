@@ -188,8 +188,8 @@ func (s *MinioService) InitLastSync(minioPath string) {
 }
 
 func (s *MinioService) UploadDirectory(localPath, minioPath string, checkInterval time.Duration) error {
-	// 检查是否需要同步
-	if !s.shouldSync(minioPath, checkInterval) {
+	// 修改检查逻辑：当 checkInterval 为 0 时强制同步
+	if checkInterval > 0 && !s.shouldSync(minioPath, checkInterval) {
 		log.Printf("跳过同步，未到检查时间: %s", minioPath)
 		return nil
 	}
