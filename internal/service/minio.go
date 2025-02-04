@@ -92,7 +92,7 @@ func calculateSHA1(path string) (string, error) {
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
-// 检查文件是否需要更新
+// 修改 SHA1 校验，统一使用元数据键 "Sha1"
 func (s *MinioService) needsUpdate(objectName, localPath string) (bool, error) {
 	// 获取Minio对象的元数据
 	stat, err := s.client.StatObject(context.Background(), s.config.Minio.Bucket, objectName, minio.StatObjectOptions{})
@@ -109,9 +109,16 @@ func (s *MinioService) needsUpdate(objectName, localPath string) (bool, error) {
 		return false, err
 	}
 
-	// 比较SHA1
-	minioSHA1, ok := stat.UserMetadata["X-Amz-Meta-Sha1"]
-	return !ok || minioSHA1 != localSHA1, nil
+	// 调试输出：打印远程所有元数据和本地SHA1
+	log.Printf("检查文件: %s, localSHA1: %s, remote元数据: %+v", objectName, localSHA1, stat.UserMetadata)
+
+	// 使用 "Sha1" 键进行检查
+	remoteSHA1, ok := stat.UserMetadata["Sha1"]
+	if ok && remoteSHA1 == localSHA1 {
+		log.Printf("文件未改变, 跳过上传: %s", objectName)
+		return false, nil
+	}
+	return true, nil
 }
 
 // 存储远程文件列表
@@ -188,7 +195,7 @@ func (s *MinioService) UploadDirectory(localPath, minioPath string) error {
 	// 并发上传任务，使用工作池处理
 	processedFiles := make(map[string]struct{})
 	var pfMutex sync.Mutex
-	const maxConcurrentUploads = 5
+	const maxConcurrentUploads = 16
 	jobChan := make(chan fileJob)
 	var wg sync.WaitGroup
 
@@ -225,8 +232,9 @@ func (s *MinioService) UploadDirectory(localPath, minioPath string) error {
 				continue
 			}
 
+			// 修改上传文件时设置的元数据键为 "Sha1"
 			userMetadata := map[string]string{
-				"X-Amz-Meta-Sha1": sha1Hash,
+				"Sha1": sha1Hash,
 			}
 			maxRetries := 3
 			var uploadErr error
