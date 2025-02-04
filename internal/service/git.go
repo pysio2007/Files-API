@@ -28,14 +28,19 @@ func (s *GitService) SyncRepository(repo *config.Repository) error {
 	}
 
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-		log.Printf("克隆仓库到: %s", fullPath)
-		// 首次克隆到缓存目录
-		cmd := exec.Command("git", "clone", "-b", repo.Branch, repo.URL, fullPath)
+		log.Printf("浅克隆仓库到: %s", fullPath)
+		// 浅克隆，仅拉取最新提交
+		cmd := exec.Command("git", "clone", "--depth", "1", "-b", repo.Branch, repo.URL, fullPath)
 		return cmd.Run()
 	}
 
 	log.Printf("更新仓库: %s", fullPath)
-	// 更新已存在的仓库
-	cmd := exec.Command("git", "-C", fullPath, "pull", "origin", repo.Branch)
+	// 使用 fetch --depth 1 拉取最新提交
+	cmd := exec.Command("git", "-C", fullPath, "fetch", "--depth", "1", "origin", repo.Branch)
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+	// 使用 reset --hard 同步至最新版本
+	cmd = exec.Command("git", "-C", fullPath, "reset", "--hard", "origin/"+repo.Branch)
 	return cmd.Run()
 }
