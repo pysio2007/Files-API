@@ -64,7 +64,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # 获取完整的提交历史
 
       - name: Download artifacts
         uses: actions/download-artifact@v4
@@ -77,10 +77,31 @@ jobs:
         shell: bash
         run: |
           COMMIT_HASH=$(git rev-parse --short HEAD)
-          COMMIT_MSG=$(git log -1 --pretty=%B)
           
-          # Create release with all artifacts
+          # 获取上次发布的tag
+          LAST_RELEASE=$(gh release list -L 1 | cut -f 3)
+          
+          if [ -z "$LAST_RELEASE" ]; then
+            # 如果是首次发布，获取所有提交
+            COMMIT_LOG=$(git log --pretty=format:"- %s (%h)" --reverse)
+          else
+            # 获取从上次发布到现在的所有提交
+            COMMIT_LOG=$(git log ${LAST_RELEASE}..HEAD --pretty=format:"- %s (%h)" --reverse)
+          fi
+          
+          # 创建临时文件存储发布说明
+          cat > release_notes.md << EOL
+          ## Changes since last release
+
+          ${COMMIT_LOG}
+
+          ## Build Information
+          - Build Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+          - Commit: ${COMMIT_HASH}
+          EOL
+          
+          # 创建release，使用所有提交记录作为发布说明
           gh release create ${COMMIT_HASH} \
             --title "Release ${COMMIT_HASH}" \
-            --notes "${COMMIT_MSG}" \
+            --notes-file release_notes.md \
             artifacts/**/*.tar.gz
