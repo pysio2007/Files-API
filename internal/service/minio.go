@@ -46,8 +46,10 @@ func getContentType(filename string) string {
 }
 
 type MinioService struct {
-	client *minio.Client
-	config *config.Config
+	client    *minio.Client
+	config    *config.Config
+	lastSync  map[string]time.Time // 新增：记录每个仓库最后同步时间
+	syncMutex sync.Mutex           // 新增：保护 lastSync map 的互斥锁
 }
 
 func NewMinioService(config *config.Config) (*MinioService, error) {
@@ -58,7 +60,11 @@ func NewMinioService(config *config.Config) (*MinioService, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &MinioService{client: client, config: config}, nil
+	return &MinioService{
+		client:   client,
+		config:   config,
+		lastSync: make(map[string]time.Time),
+	}, nil
 }
 
 func (s *MinioService) CheckConnection() error {
@@ -154,7 +160,33 @@ func (s *MinioService) removeObject(objectPath string) error {
 	return s.client.RemoveObject(context.Background(), s.config.Minio.Bucket, objectPath, minio.RemoveObjectOptions{})
 }
 
-func (s *MinioService) UploadDirectory(localPath, minioPath string) error {
+// 检查是否需要同步
+func (s *MinioService) shouldSync(minioPath string, checkInterval time.Duration) bool {
+	s.syncMutex.Lock()
+	defer s.syncMutex.Unlock()
+
+	lastSync, exists := s.lastSync[minioPath]
+	if !exists {
+		s.lastSync[minioPath] = time.Now()
+		return true
+	}
+
+	if time.Since(lastSync) >= checkInterval {
+		s.lastSync[minioPath] = time.Now()
+		return true
+	}
+
+	return false
+}
+
+func (s *MinioService) UploadDirectory(localPath, minioPath string, checkInterval time.Duration) error {
+	// 检查是否需要同步
+	if !s.shouldSync(minioPath, checkInterval) {
+		log.Printf("跳过同步，未到检查时间: %s", minioPath)
+		return nil
+	}
+
+	log.Printf("开始同步目录: %s, 间隔时间: %v", minioPath, checkInterval)
 	// 构建完整的本地路径
 	fullPath := filepath.Join(s.config.Git.CachePath, localPath)
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {

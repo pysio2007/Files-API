@@ -20,11 +20,16 @@ type syncTask struct {
 
 func syncWorker(taskChan <-chan syncTask) {
 	for task := range taskChan {
+		// 获取仓库的检查间隔
+		interval := task.gitService.GetCheckInterval(task.repo)
+
 		if err := task.gitService.SyncRepository(task.repo); err != nil {
 			log.Printf("同步仓库失败 %s: %v", task.repo.URL, err)
 			continue
 		}
-		if err := task.minioService.UploadDirectory(task.repo.LocalPath, task.repo.MinioPath); err != nil {
+
+		// 传递检查间隔到 UploadDirectory
+		if err := task.minioService.UploadDirectory(task.repo.LocalPath, task.repo.MinioPath, interval); err != nil {
 			log.Printf("上传到Minio失败 %s: %v", task.repo.MinioPath, err)
 		}
 	}
