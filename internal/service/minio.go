@@ -133,26 +133,34 @@ type MinioObjects struct {
 }
 
 // 获取Minio中指定路径下的所有文件
-func (s *MinioService) listObjects(minioPath string) (*MinioObjects, error) {
+func (s *MinioService) ListObjects(prefix string) ([]MinioObject, error) {
 	ctx := context.Background()
-	objects := &MinioObjects{
-		Objects: make(map[string]struct{}),
-	}
+	var objects []MinioObject
 
 	opts := minio.ListObjectsOptions{
-		Prefix:    minioPath,
+		Prefix:    prefix,
 		Recursive: true,
 	}
 
-	// 列出所有对象
+	// 遍历 minio 对象列表，并构造返回列表
 	for object := range s.client.ListObjects(ctx, s.config.Minio.Bucket, opts) {
 		if object.Err != nil {
 			return nil, object.Err
 		}
-		objects.Objects[object.Key] = struct{}{}
+		objects = append(objects, MinioObject{
+			Key:          object.Key,
+			Size:         object.Size,
+			LastModified: object.LastModified,
+		})
 	}
-
 	return objects, nil
+}
+
+// 定义公开的 MinioObject 结构体，如未定义则添加
+type MinioObject struct {
+	Key          string
+	Size         int64
+	LastModified time.Time
 }
 
 // 删除Minio中的文件
@@ -327,18 +335,18 @@ func (s *MinioService) UploadDirectory(localPath, minioPath string, checkInterva
 	wg.Wait()
 
 	// 删除Minio中存在但本地不存在的文件
-	existingObjects, err := s.listObjects(minioPath)
+	existingObjects, err := s.ListObjects(minioPath)
 	if err != nil {
 		return fmt.Errorf("获取Minio文件列表失败: %v", err)
 	}
-	for objectPath := range existingObjects.Objects {
+	for _, obj := range existingObjects {
 		pfMutex.Lock()
-		_, exists := processedFiles[objectPath]
+		_, exists := processedFiles[obj.Key]
 		pfMutex.Unlock()
 		if !exists {
-			log.Printf("删除已移除的文件: %s", objectPath)
-			if err := s.removeObject(objectPath); err != nil {
-				log.Printf("删除文件失败 %s: %v", objectPath, err)
+			log.Printf("删除已移除的文件: %s", obj.Key)
+			if err := s.removeObject(obj.Key); err != nil {
+				log.Printf("删除文件失败 %s: %v", obj.Key, err)
 			}
 		}
 	}

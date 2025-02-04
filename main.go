@@ -175,8 +175,10 @@ func main() {
 		}
 	}()
 
-	// 设置路由 - 直接在根路径处理请求
-	http.Handle("/", docsHandler)
+	// 设置路由
+	apiHandler := handler.NewAPIHandler(minioService, cfg)
+	http.Handle("/api/files/", apiHandler) // API 端点
+	http.Handle("/", docsHandler)          // 静态文件访问
 
 	// 启动服务器
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
