@@ -12,11 +12,14 @@ import (
 )
 
 type CliFlags struct {
-	Help      bool
-	Skip      bool
-	ZipLogs   bool
-	UnzipLogs bool
-	Sync      bool // 新增：执行单次同步
+	Help       bool
+	Skip       bool
+	ZipLogs    bool
+	UnzipLogs  bool
+	Sync       bool // 新增：执行单次同步
+	ClearLogs  bool // 新增：清除所有日志
+	ClearCache bool // 新增：清除缓存目录
+	ClearAll   bool // 新增：清除所有
 }
 
 func ParseFlags() *CliFlags {
@@ -28,6 +31,11 @@ func ParseFlags() *CliFlags {
 	flag.BoolVar(&flags.ZipLogs, "zip-logs", false, "压缩所有日志文件")
 	flag.BoolVar(&flags.UnzipLogs, "unzip-logs", false, "解压所有日志文件")
 	flag.BoolVar(&flags.Sync, "sync", false, "执行单次同步检查") // 新增
+	flag.BoolVar(&flags.ClearLogs, "clear-logs", false, "清除所有日志文件")
+	flag.BoolVar(&flags.ClearLogs, "cl", false, "清除所有日志文件")
+	flag.BoolVar(&flags.ClearCache, "clear-cache", false, "清除所有缓存")
+	flag.BoolVar(&flags.ClearCache, "cc", false, "清除所有缓存")
+	flag.BoolVar(&flags.ClearAll, "clear-all", false, "清除所有日志和缓存")
 
 	flag.Usage = showHelp
 	flag.Parse()
@@ -42,11 +50,14 @@ func showHelp() {
   Files-API [选项]
 
 选项:
-  -h, --help       显示帮助信息
-  --skip           跳过首次同步，等待下一个检查周期
-  --sync          执行单次同步检查后退出
-  --zip-logs      压缩所有日志文件为zip格式
-  --unzip-logs    解压所有zip格式的日志文件
+  -h, --help           显示帮助信息
+  --skip               跳过首次同步，等待下一个检查周期
+  --sync              执行单次同步检查后退出
+  --zip-logs          压缩所有日志文件为zip格式
+  --unzip-logs        解压所有zip格式的日志文件
+  --clear-logs, -cl   清除所有日志文件
+  --clear-cache, -cc  清除所有缓存
+  --clear-all         清除所有日志和缓存
 
 `)
 }
@@ -166,4 +177,65 @@ func UncompressLogs(directory string) error {
 	}
 
 	return nil
+}
+
+// 新增：清除日志文件
+func ClearLogs(directory string) error {
+	pattern := filepath.Join(directory, "Files-API-*.{log,zip}")
+	files, err := filepath.Glob(pattern)
+	if err != nil {
+		return fmt.Errorf("获取日志文件失败: %v", err)
+	}
+
+	var totalSize int64
+	count := 0
+	for _, file := range files {
+		info, err := os.Stat(file)
+		if err == nil {
+			totalSize += info.Size()
+		}
+		if err := os.Remove(file); err != nil {
+			log.Printf("删除文件失败 %s: %v", file, err)
+			continue
+		}
+		count++
+		log.Printf("已删除: %s", file)
+	}
+
+	log.Printf("清理完成: 共删除 %d 个日志文件，释放空间 %.2f MB", count, float64(totalSize)/1024/1024)
+	return nil
+}
+
+// 新增：清除缓存目录
+func ClearCache(cacheDir string) error {
+	// 检查目录是否存在
+	if _, err := os.Stat(cacheDir); os.IsNotExist(err) {
+		return nil
+	}
+
+	// 计算目录大小
+	totalSize := getDirSize(cacheDir)
+
+	// 删除目录
+	if err := os.RemoveAll(cacheDir); err != nil {
+		return fmt.Errorf("清除缓存目录失败: %v", err)
+	}
+
+	log.Printf("清理完成: 已删除缓存目录 %s，释放空间 %.2f MB", cacheDir, float64(totalSize)/1024/1024)
+	return nil
+}
+
+// 辅助函数：计算目录大小
+func getDirSize(path string) int64 {
+	var size int64
+	filepath.Walk(path, func(_ string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() {
+			size += info.Size()
+		}
+		return nil
+	})
+	return size
 }

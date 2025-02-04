@@ -71,6 +71,23 @@ func main() {
 		return
 	}
 
+	// 处理清理命令
+	if flags.ClearAll || flags.ClearLogs {
+		if err := middleware.ClearLogs("logs"); err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	if flags.ClearAll || flags.ClearCache {
+		if err := middleware.ClearCache(".cache"); err != nil {
+			log.Fatal(err)
+		}
+	}
+
+	if flags.ClearAll || flags.ClearLogs || flags.ClearCache {
+		return
+	}
+
 	// 加载配置文件
 	cfg, err := config.LoadConfig("config.yaml")
 	if err != nil {
