@@ -179,6 +179,14 @@ func (s *MinioService) shouldSync(minioPath string, checkInterval time.Duration)
 	return false
 }
 
+// 初始化最后同步时间
+func (s *MinioService) InitLastSync(minioPath string) {
+	s.syncMutex.Lock()
+	defer s.syncMutex.Unlock()
+	s.lastSync[minioPath] = time.Now()
+	log.Printf("初始化同步时间: %s", minioPath)
+}
+
 func (s *MinioService) UploadDirectory(localPath, minioPath string, checkInterval time.Duration) error {
 	// 检查是否需要同步
 	if !s.shouldSync(minioPath, checkInterval) {

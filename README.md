@@ -1,3 +1,5 @@
+![Files-API](https://socialify.git.ci/pysio2007/Files-API/image?custom_description=自动同步Github+Repo到Minio&description=1&font=Inter&forks=1&language=1&name=1&owner=1&pattern=Signal&pulls=1&stargazers=1&theme=Auto)
+
 # Files-API 文件同步服务
 
 这是一个基于 Go 实现的文件同步和分发服务，用于将 Git 仓库中的文件自动同步到 Minio 对象存储，并提供统一的文件访问接口。
@@ -98,6 +100,30 @@ exposedPaths:
      checkInterval: "1y"   # 1年
      ```
 
+## 特殊启动参数
+
+### 跳过首次同步 (--skip)
+
+当使用 `--skip` 参数启动时，程序会：
+1. 跳过启动时的初始同步
+2. 等待各仓库配置的检查间隔后再进行首次同步
+3. 适用于需要延迟同步的场景
+
+示例：
+```bash
+# 正常启动（执行首次同步）
+./Files-API
+
+# 跳过首次同步
+./Files-API --skip
+```
+
+使用场景：
+- CI/CD 环境中避免重复同步
+- 仓库内容暂时不可用时
+- 需要等待外部服务就绪
+- 控制同步时间窗口
+
 ## 工作原理
 
 1. 定期从 Git 仓库拉取最新文件
@@ -122,8 +148,9 @@ GET /public/files/document.pdf
 
 ## 同步机制
 
-- 启动时执行初始同步
-- 每10分钟自动检查更新
+- 启动时执行初始同步（可使用 --skip 跳过）
+- 根据每个仓库的 checkInterval 定期检查
+- 支持分钟/小时/天/年级别的同步间隔
 - 异步处理不阻塞访问
 - 支持多worker并行同步
 

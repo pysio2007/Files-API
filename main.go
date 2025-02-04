@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -44,6 +45,10 @@ func startSyncWorkers(numWorkers int) chan<- syncTask {
 }
 
 func main() {
+	// 添加命令行参数
+	skipInitialSync := flag.Bool("skip", false, "跳过首次同步，等待下一个检查周期")
+	flag.Parse()
+
 	log.Printf("正在加载配置文件...")
 	cfg, err := config.LoadConfig("config.yaml") // 改为使用根目录的配置文件
 	if err != nil {
@@ -69,13 +74,21 @@ func main() {
 	// 启动同步工作池
 	taskChan := startSyncWorkers(2) // 使用2个工作线程
 
-	// 启动时执行初始同步
-	log.Printf("开始初始同步...")
-	for _, repo := range cfg.Git.Repositories {
-		taskChan <- syncTask{
-			repo:         &repo,
-			gitService:   gitService,
-			minioService: minioService,
+	// 根据 skip 参数决定是否执行初始同步
+	if !*skipInitialSync {
+		log.Printf("开始初始同步...")
+		for _, repo := range cfg.Git.Repositories {
+			taskChan <- syncTask{
+				repo:         &repo,
+				gitService:   gitService,
+				minioService: minioService,
+			}
+		}
+	} else {
+		log.Printf("已跳过初始同步，等待下一个检查周期...")
+		// 为每个仓库初始化最后同步时间
+		for _, repo := range cfg.Git.Repositories {
+			minioService.InitLastSync(repo.MinioPath)
 		}
 	}
 
