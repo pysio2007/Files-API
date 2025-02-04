@@ -12,15 +12,15 @@ jobs:
           - os: ubuntu-latest
             goos: linux
             goarch: amd64
-            output: blog-api-linux-amd64
+            output: files-api-linux-amd64     # 修改产物名称
           - os: ubuntu-latest
             goos: linux
             goarch: arm64
-            output: blog-api-linux-arm64
+            output: files-api-linux-arm64     # 修改产物名称
           - os: ubuntu-latest
             goos: windows
             goarch: amd64
-            output: blog-api-windows-amd64.exe
+            output: files-api-windows-amd64.exe  # 修改产物名称
           
     runs-on: ${{ matrix.os }}
     permissions:
