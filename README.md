@@ -181,6 +181,28 @@ cache:
     hitLog: true               # 记录缓存命中日志
 ```
 
+### 缓存配置进阶说明
+
+1. API 缓存控制
+```yaml
+cache:
+    enableAPICache: true       # 启用API缓存功能
+    apiCacheControl: "5m"      # API缓存时间
+    apiExcludePaths:          # 不缓存的API路径
+        - "/api/files/sync/status"  # 同步状态接口不缓存
+```
+
+2. 缓存排除规则
+- 支持精确路径匹配
+- 支持路径前缀匹配
+- 在 enableAPICache 为 true 时仍然生效
+- 优先级高于全局缓存设置
+
+3. 性能建议
+- 动态内容的API应加入排除列表
+- 静态内容建议启用较长的缓存时间
+- 监控类接口建议禁用缓存
+
 ### 缓存机制说明
 
 1. 本地缓存
@@ -488,6 +510,15 @@ GET /api/files/sync/status
 - `idle`: 空闲状态，等待下次同步
 - `syncing`: 正在同步
 - `error`: 同步出错，查看 error 字段获取详细信息
+- `unknown`: 初始状态
+
+监控指标：
+- `lastSync`: 最后同步时间
+- `nextSync`: 下次预计同步时间
+- `progress`: 当前同步进度(0-100)
+- `totalFiles`: 总文件数
+- `currentFiles`: 已处理文件数
+- `error`: 错误信息(如果有)
 
 监控示例：
 ```bash

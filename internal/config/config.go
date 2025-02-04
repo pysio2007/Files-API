@@ -29,15 +29,16 @@ type LogConfig struct {
 
 // 新增：缓存配置结构
 type CacheConfig struct {
-	Enabled         bool   `yaml:"enabled"`         // 是否启用缓存
-	Directory       string `yaml:"directory"`       // 缓存目录
-	MaxSize         int    `yaml:"maxSize"`         // 缓存目录最大大小(MB)
-	TTL             string `yaml:"ttl"`             // 缓存有效期
-	CacheControl    string `yaml:"cacheControl"`    // CDN缓存时间
-	CacheLog        bool   `yaml:"cacheLog"`        // 是否记录缓存操作日志
-	HitLog          bool   `yaml:"hitLog"`          // 是否记录缓存命中日志
-	EnableAPICache  bool   `yaml:"enableAPICache"`  // 是否启用API缓存控制
-	APICacheControl string `yaml:"apiCacheControl"` // API缓存控制时间
+	Enabled         bool     `yaml:"enabled"`         // 是否启用缓存
+	Directory       string   `yaml:"directory"`       // 缓存目录
+	MaxSize         int      `yaml:"maxSize"`         // 缓存目录最大大小(MB)
+	TTL             string   `yaml:"ttl"`             // 缓存有效期
+	CacheControl    string   `yaml:"cacheControl"`    // CDN缓存时间
+	CacheLog        bool     `yaml:"cacheLog"`        // 是否记录缓存操作日志
+	HitLog          bool     `yaml:"hitLog"`          // 是否记录缓存命中日志
+	EnableAPICache  bool     `yaml:"enableAPICache"`  // 是否启用API缓存控制
+	APICacheControl string   `yaml:"apiCacheControl"` // API缓存控制时间
+	APIExcludePaths []string `yaml:"apiExcludePaths"` // 不缓存的API路径
 }
 
 type Server struct {
@@ -151,6 +152,9 @@ func createDefaultConfig(path string) error {
 			HitLog:          false, // 默认不记录命中日志
 			EnableAPICache:  true,  // 默认启用API缓存控制
 			APICacheControl: "5m",  // API默认缓存5分钟
+			APIExcludePaths: []string{
+				"/api/files/sync/status", // 默认不缓存同步状态接口
+			},
 		},
 	}
 

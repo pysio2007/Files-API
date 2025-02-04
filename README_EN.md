@@ -183,6 +183,28 @@ cache:
     hitLog: true               # Log cache hits
 ```
 
+### Advanced Cache Configuration
+
+1. API Cache Control
+```yaml
+cache:
+    enableAPICache: true       # Enable API caching
+    apiCacheControl: "5m"      # API cache duration
+    apiExcludePaths:          # Paths to exclude from caching
+        - "/api/files/sync/status"  # Sync status endpoint
+```
+
+2. Cache Exclusion Rules
+- Supports exact path matching
+- Supports path prefix matching
+- Takes effect even when enableAPICache is true
+- Higher priority than global cache settings
+
+3. Performance Recommendations
+- Add dynamic content APIs to exclusion list
+- Use longer cache times for static content
+- Disable caching for monitoring endpoints
+
 ### Cache Mechanism
 
 1. Local Cache
@@ -440,6 +462,16 @@ Status Descriptions:
 - `idle`: Waiting for next sync
 - `syncing`: Currently synchronizing
 - `error`: Sync failed, check error field for details
+- `unknown`: Initial state
+
+Monitoring Metrics:
+- `lastSync`: Last synchronization time
+- `nextSync`: Next scheduled sync time
+- `progress`: Current sync progress (0-100)
+- `totalFiles`: Total number of files
+- `currentFiles`: Processed files count
+- `error`: Error message (if any)
+
 
 Monitoring Examples:
 ```bash

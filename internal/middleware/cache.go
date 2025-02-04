@@ -93,6 +93,24 @@ func (cw *cacheWriter) Write(b []byte) (int, error) {
 	return cw.ResponseWriter.Write(b)
 }
 
+func (cm *CacheMiddleware) shouldCache(path string) bool {
+	// 检查是否是 API 请求
+	if strings.HasPrefix(path, "/api/") {
+		// 如果 API 缓存未启用，直接返回 false
+		if !cm.config.EnableAPICache {
+			return false
+		}
+
+		// 检查是否在例外列表中
+		for _, excludePath := range cm.config.APIExcludePaths {
+			if strings.HasPrefix(path, excludePath) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 func (cm *CacheMiddleware) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !cm.config.Enabled {
@@ -100,7 +118,16 @@ func (cm *CacheMiddleware) Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		// 检查是否是API请求
+		// 检查是否应该缓存这个请求
+		if !cm.shouldCache(r.URL.Path) {
+			if cm.config.CacheLog {
+				log.Printf("Skip caching for path: %s", r.URL.Path)
+			}
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// 检查是否是API请求（用于设置不同的缓存时间）
 		isAPIRequest := strings.HasPrefix(r.URL.Path, "/api/")
 
 		key := cm.generateCacheKey(r)
@@ -114,7 +141,7 @@ func (cm *CacheMiddleware) Middleware(next http.Handler) http.Handler {
 			}
 
 			// 添加缓存控制头
-			if isAPIRequest && cm.config.EnableAPICache {
+			if isAPIRequest {
 				if duration, err := parseDuration(cm.config.APICacheControl); err == nil {
 					w.Header().Set("Cache-Control", fmt.Sprintf("public, max-age=%d", int(duration.Seconds())))
 				}
