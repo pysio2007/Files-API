@@ -195,7 +195,13 @@ func (s *MinioService) UploadDirectory(localPath, minioPath string) error {
 	// 并发上传任务，使用工作池处理
 	processedFiles := make(map[string]struct{})
 	var pfMutex sync.Mutex
-	const maxConcurrentUploads = 16
+
+	// 使用配置的线程数，如果配置值小于1则使用默认值16
+	maxWorkers := s.config.Minio.MaxWorkers
+	if maxWorkers < 1 {
+		maxWorkers = 16
+	}
+
 	jobChan := make(chan fileJob)
 	var wg sync.WaitGroup
 
@@ -266,8 +272,8 @@ func (s *MinioService) UploadDirectory(localPath, minioPath string) error {
 		}
 	}
 
-	wg.Add(maxConcurrentUploads)
-	for i := 0; i < maxConcurrentUploads; i++ {
+	wg.Add(maxWorkers)
+	for i := 0; i < maxWorkers; i++ {
 		go worker()
 	}
 	// 发送任务

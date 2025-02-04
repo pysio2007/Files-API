@@ -26,6 +26,7 @@ type Minio struct {
 	UseSSL       bool   `yaml:"useSSL"`
 	Bucket       string `yaml:"bucket"`
 	UsePublicURL bool   `yaml:"usePublicURL"`
+	MaxWorkers   int    `yaml:"maxWorkers"` // 新增：最大并发上传线程数
 }
 
 type Git struct {
@@ -81,6 +82,7 @@ func createDefaultConfig(path string) error {
 			UseSSL:       true,
 			Bucket:       "documents",
 			UsePublicURL: true,
+			MaxWorkers:   16, // 默认16个线程
 		},
 		Git: Git{
 			CachePath: ".cache/repos",

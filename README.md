@@ -6,6 +6,7 @@
 
 - 支持多 Git 仓库自动同步
 - 支持每个仓库独立配置同步间隔
+- 支持自定义并发上传线程数
 - 增量更新，只同步变更文件
 - 提供统一的文件访问端点
 - 支持自定义访问路径映射
@@ -33,6 +34,7 @@ minio:
     useSSL: true                # 是否使用SSL
     bucket: "documents"         # 存储桶名称
     usePublicURL: true         # 是否使用Minio公共URL进行重定向
+    maxWorkers: 16             # 最大并发上传线程数
 ```
 
 ### 仓库和路径配置
@@ -75,6 +77,26 @@ exposedPaths:
    - 当 `usePublicURL: false` 或获取公共 URL 失败时
    - 通过应用服务器中转文件内容
    - 适用于内部网络或需要额外控制的场景
+
+### 性能调优
+
+1. 并发上传线程数
+   - 通过 `minio.maxWorkers` 配置
+   - 默认值为 16
+   - 根据服务器性能和网络状况调整
+   - 建议值范围：8-32
+
+2. 仓库检查间隔
+   - 每个仓库可独立配置
+   - 支持分钟(m)、小时(h)、天(d)、年(y)
+   - 未配置默认10分钟
+   - 示例：
+     ```yaml
+     checkInterval: "30m"  # 30分钟
+     checkInterval: "1h"   # 1小时
+     checkInterval: "1d"   # 1天
+     checkInterval: "1y"   # 1年
+     ```
 
 ## 工作原理
 
