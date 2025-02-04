@@ -472,40 +472,125 @@ curl http://localhost:8080/api/files/static/?page=2&pageSize=50
 - 异步同步避免阻塞
 - 多worker并行处理
 
-## 调试指南
+## 🔧 调试指南
 
-### 日志调试
+### 日志配置说明
 
-1. 完整调试配置
+1. 完整调试配置（记录所有信息）
 ```yaml
 logs:
-    accessLog: true     # 记录所有访问
-    processLog: true    # 记录处理流程
-    redirectLog: true   # 记录重定向
-    presignLog: true    # 记录临时链接
-    saveToFile: true    # 保存到文件
-    maxSize: 100        # 限制总大小
-    directory: "logs"   # 存储目录
+    accessLog: true     # 记录所有访问请求
+    processLog: true    # 记录文件处理过程
+    redirectLog: true   # 记录URL重定向
+    presignLog: true    # 记录预签名URL生成
+    saveToFile: true    # 同时输出到文件和控制台
+    maxSize: 100        # 日志目录限制（MB）
+    directory: "logs"   # 日志目录
 ```
 
-2. 最小日志配置
+2. 缓存调试配置
 ```yaml
-logs:
-    accessLog: true     # 仅记录基本访问
-    processLog: false
-    redirectLog: false
-    presignLog: false
-    saveToFile: false   # 仅输出到控制台
+cache:
+    cacheLog: true      # 记录缓存操作
+    hitLog: true        # 记录缓存命中
 ```
 
-3. 查看日志文件
+### 常见问题排查
+
+1. 文件同步问题
 ```bash
-# 查看今日日志
-cat logs/Files-API-2025-02-05.log
+# 检查同步状态
+./Files-API --sync
 
-# 监控实时日志
-tail -f logs/Files-API-2025-02-05.log
+# 同步指定仓库
+./Files-API --rsync=static
+
+# 查看同步日志
+tail -f logs/Files-API-$(date +%Y-%m-%d).log | grep "同步"
 ```
+
+2. 缓存问题
+```bash
+# 检查缓存状态
+ls -lh .cache/files/
+
+# 清理缓存后重试
+./Files-API --clear-cache
+
+# 监控缓存命中
+tail -f logs/Files-API-$(date +%Y-%m-%d).log | grep "Cache hit"
+```
+
+3. Minio连接问题
+```bash
+# 检查Minio连接
+curl -I http://{minio-endpoint}/
+# 或使用其他工具如 s3cmd test
+
+# 验证配置
+cat config.yaml | grep minio -A 8
+```
+
+### 性能分析
+
+1. 使用Go性能分析工具
+```bash
+# 启用性能分析
+GODEBUG=gctrace=1 ./Files-API
+
+# 使用pprof
+go tool pprof http://localhost:8080/debug/pprof/heap
+```
+
+2. 监控系统资源
+```bash
+# 查看内存使用
+ps -o pid,ppid,%mem,rss,cmd -p $(pgrep Files-API)
+
+# 查看文件描述符
+lsof -p $(pgrep Files-API)
+```
+
+### 开发调试
+
+1. 启用所有日志
+```bash
+# 修改配置文件
+vim config.yaml
+# 将所有日志选项设置为 true
+
+# 使用更短的同步间隔测试
+checkInterval: "1m"
+```
+
+2. API测试
+```bash
+# 测试文件列表API
+curl "http://localhost:8080/api/files/static/?page=1&pageSize=10"
+
+# 测试文件访问
+curl -I "http://localhost:8080/static/test.txt"
+```
+
+3. 性能测试
+```bash
+# 测试并发请求
+ab -n 1000 -c 10 http://localhost:8080/api/files/static/
+
+# 测试文件上传
+for i in {1..10}; do
+    ./Files-API --sync
+done
+```
+
+### 错误码说明
+
+| 状态码 | 说明 | 处理方法 |
+|--------|------|----------|
+| 400 | 请求参数错误 | 检查API参数 |
+| 404 | 文件不存在 | 检查路径和同步状态 |
+| 500 | 服务器内部错误 | 查看详细日志 |
+| 503 | Minio服务不可用 | 检查Minio连接 |
 
 ## 🤝 参与贡献
 

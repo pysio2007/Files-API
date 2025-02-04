@@ -320,6 +320,246 @@ GET /assets/css/main.css
 GET /public/files/document.pdf
 ```
 
+## 🛠️ API Reference
+
+### File List API
+
+Get a list of files and subdirectories in the specified directory.
+
+```http
+GET /api/files/{path}?page=1&pageSize=20
+```
+
+Parameters:
+- `path`: Optional, directory path
+- `page`: Optional, page number (default: 1)
+- `pageSize`: Optional, items per page (default: 20, max: 100)
+
+Response Format:
+```json
+{
+    "code": 200,
+    "message": "success",
+    "data": [
+        {
+            "name": "images",
+            "path": "static/images/",
+            "isDirectory": true
+        },
+        {
+            "name": "logo.png",
+            "path": "static/logo.png",
+            "size": 12345,
+            "lastModified": "2024-02-05T12:34:56Z",
+            "isDirectory": false,
+            "url": "https://..."
+        }
+    ],
+    "pagination": {
+        "current": 1,
+        "pageSize": 20,
+        "total": 42
+    }
+}
+```
+
+Response Fields:
+1. File Information (FileInfo)
+   - `name`: File or directory name
+   - `path`: Complete path
+   - `size`: File size in bytes
+   - `lastModified`: Last modification time
+   - `isDirectory`: Whether it's a directory
+   - `url`: File access URL (only when usePublicURL=true)
+
+2. Pagination Info
+   - `current`: Current page number
+   - `pageSize`: Items per page
+   - `total`: Total number of items
+
+### File Access API
+
+Direct file content access.
+
+```http
+GET /{minioPath}/{filePath}
+```
+
+Access Modes:
+1. Redirect Mode (usePublicURL=true)
+   - Returns 302 redirect to presigned URL
+   - Presigned URL valid for 1 hour
+   - Reduces server load
+   - Recommended for public access
+
+2. Proxy Mode (usePublicURL=false)
+   - Returns file content directly
+   - Sets appropriate Content-Type
+   - Supports large file transfers
+   - Suitable for internal networks
+
+Examples:
+```bash
+# Access file
+GET /static/images/logo.png
+
+# Get JSON file info with Accept header
+curl -H "Accept: application/json" http://localhost:8080/api/files/static/images/
+
+# Paginated query
+curl http://localhost:8080/api/files/static/?page=2&pageSize=50
+```
+
+### API Cache Control
+
+The service supports different caching strategies for API responses and static files:
+
+```yaml
+cache:
+    enableAPICache: true    # Enable API response caching
+    apiCacheControl: "5m"   # API cache duration (5 minutes)
+    cacheControl: "30d"     # Static files cache duration (30 days)
+```
+
+Headers:
+- API responses include `Cache-Control: public, max-age=300` (5 minutes)
+- Static files include `Cache-Control: public, max-age=2592000` (30 days)
+
+### Error Responses
+
+```json
+{
+    "code": 404,
+    "message": "File not found"
+}
+```
+
+Common Status Codes:
+- `200`: Success
+- `400`: Invalid request
+- `404`: File not found
+- `500`: Server error
+
+## 🔧 Debugging Guide
+
+### Log Configuration
+
+1. Full Debug Configuration (Record Everything)
+```yaml
+logs:
+    accessLog: true     # Record all requests
+    processLog: true    # Record file processing
+    redirectLog: true   # Record URL redirects
+    presignLog: true    # Record presigned URL generation
+    saveToFile: true    # Output to both file and console
+    maxSize: 100        # Log directory limit (MB)
+    directory: "logs"   # Log directory
+```
+
+2. Cache Debug Configuration
+```yaml
+cache:
+    cacheLog: true      # Record cache operations
+    hitLog: true        # Record cache hits
+```
+
+### Troubleshooting
+
+1. File Sync Issues
+```bash
+# Check sync status
+./Files-API --sync
+
+# Sync specific repository
+./Files-API --rsync=static
+
+# Monitor sync logs
+tail -f logs/Files-API-$(date +%Y-%m-%d).log | grep "sync"
+```
+
+2. Cache Issues
+```bash
+# Check cache status
+ls -lh .cache/files/
+
+# Clear cache and retry
+./Files-API --clear-cache
+
+# Monitor cache hits
+tail -f logs/Files-API-$(date +%Y-%m-%d).log | grep "Cache hit"
+```
+
+3. Minio Connection Issues
+```bash
+# Check Minio connection
+curl -I http://{minio-endpoint}/
+# Or use tools like s3cmd test
+
+# Verify configuration
+cat config.yaml | grep minio -A 8
+```
+
+### Performance Analysis
+
+1. Using Go Profiling Tools
+```bash
+# Enable profiling
+GODEBUG=gctrace=1 ./Files-API
+
+# Use pprof
+go tool pprof http://localhost:8080/debug/pprof/heap
+```
+
+2. Monitor System Resources
+```bash
+# Check memory usage
+ps -o pid,ppid,%mem,rss,cmd -p $(pgrep Files-API)
+
+# Check file descriptors
+lsof -p $(pgrep Files-API)
+```
+
+### Development Debugging
+
+1. Enable All Logs
+```bash
+# Edit config file
+vim config.yaml
+# Set all log options to true
+
+# Test with shorter sync interval
+checkInterval: "1m"
+```
+
+2. API Testing
+```bash
+# Test file list API
+curl "http://localhost:8080/api/files/static/?page=1&pageSize=10"
+
+# Test file access
+curl -I "http://localhost:8080/static/test.txt"
+```
+
+3. Performance Testing
+```bash
+# Test concurrent requests
+ab -n 1000 -c 10 http://localhost:8080/api/files/static/
+
+# Test file uploads
+for i in {1..10}; do
+    ./Files-API --sync
+done
+```
+
+### Error Codes
+
+| Status Code | Description | Resolution |
+|-------------|-------------|------------|
+| 400 | Bad Request | Check API parameters |
+| 404 | File Not Found | Check path and sync status |
+| 500 | Internal Server Error | Check detailed logs |
+| 503 | Minio Service Unavailable | Check Minio connection |
+
 ## Debugging Guide
 
 ### Log Configuration
