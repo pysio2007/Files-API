@@ -20,11 +20,12 @@ type Server struct {
 }
 
 type Minio struct {
-	Endpoint  string `yaml:"endpoint"`
-	AccessKey string `yaml:"accessKey"`
-	SecretKey string `yaml:"secretKey"`
-	UseSSL    bool   `yaml:"useSSL"`
-	Bucket    string `yaml:"bucket"`
+	Endpoint     string `yaml:"endpoint"`
+	AccessKey    string `yaml:"accessKey"`
+	SecretKey    string `yaml:"secretKey"`
+	UseSSL       bool   `yaml:"useSSL"`
+	Bucket       string `yaml:"bucket"`
+	UsePublicURL bool   `yaml:"usePublicURL"`
 }
 
 type Git struct {
@@ -73,11 +74,12 @@ func createDefaultConfig(path string) error {
 			Host: "0.0.0.0",
 		},
 		Minio: Minio{
-			Endpoint:  "play.min.io",
-			AccessKey: "your-access-key",
-			SecretKey: "your-secret-key",
-			UseSSL:    true,
-			Bucket:    "documents",
+			Endpoint:     "play.min.io",
+			AccessKey:    "your-access-key",
+			SecretKey:    "your-secret-key",
+			UseSSL:       true,
+			Bucket:       "documents",
+			UsePublicURL: true,
 		},
 		Git: Git{
 			CachePath: ".cache/repos",

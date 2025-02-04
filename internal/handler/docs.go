@@ -61,7 +61,16 @@ func (h *DocsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 直接使用请求路径作为Minio对象路径
+	// 使用Minio API的公共URL
+	if h.config.Minio.UsePublicURL {
+		publicURL := h.minioService.GetPublicURL(filePath)
+		if publicURL != "" {
+			http.Redirect(w, r, publicURL, http.StatusFound)
+			return
+		}
+	}
+
+	// 如果获取公共URL失败或未启用，则使用代理方式
 	object, err := h.minioService.GetObject(filePath)
 	if err != nil {
 		log.Printf("获取文件失败 %s: %v", filePath, err)

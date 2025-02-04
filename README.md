@@ -21,13 +21,17 @@
 server:
   port: 8080          # 服务端口
   host: "0.0.0.0"     # 监听地址
+```
 
+### Minio配置
+```yaml
 minio:
-  endpoint: "play.min.io"        # Minio服务器地址
-  accessKey: "your-access-key"   # 访问密钥
-  secretKey: "your-secret-key"   # 访问密钥
-  useSSL: true                   # 是否使用SSL
-  bucket: "files"                # 存储桶名称
+    endpoint: "play.min.io"      # Minio服务器地址
+    accessKey: "your-access-key" # 访问密钥
+    secretKey: "your-secret-key" # 访问密钥
+    useSSL: true                # 是否使用SSL
+    bucket: "documents"         # 存储桶名称
+    usePublicURL: true         # 是否使用Minio公共URL进行重定向
 ```
 
 ### 仓库和路径配置
@@ -44,6 +48,21 @@ exposedPaths:
     - urlPath: "/assets"        # 访问URL路径
       minioPath: "static"       # 存储路径前缀
 ```
+
+### 访问模式
+
+服务支持两种访问模式：
+
+1. 重定向模式（推荐）
+   - 启用 `usePublicURL: true`
+   - 自动使用 Minio 的预签名 URL
+   - 支持直接从 Minio 服务器下载
+   - 减轻应用服务器负载
+
+2. 代理模式
+   - 当 `usePublicURL: false` 或获取公共 URL 失败时
+   - 通过应用服务器中转文件内容
+   - 适用于内部网络或需要额外控制的场景
 
 ## 工作原理
 
