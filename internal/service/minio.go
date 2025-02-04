@@ -115,9 +115,51 @@ func (s *MinioService) needsUpdate(objectName, localPath string) (bool, error) {
 	return !ok || minioSHA1 != localSHA1, nil
 }
 
+// 存储远程文件列表
+type MinioObjects struct {
+	Objects map[string]struct{}
+}
+
+// 获取Minio中指定路径下的所有文件
+func (s *MinioService) listObjects(minioPath string) (*MinioObjects, error) {
+	ctx := context.Background()
+	objects := &MinioObjects{
+		Objects: make(map[string]struct{}),
+	}
+
+	opts := minio.ListObjectsOptions{
+		Prefix:    minioPath,
+		Recursive: true,
+	}
+
+	// 列出所有对象
+	for object := range s.client.ListObjects(ctx, s.config.Minio.Bucket, opts) {
+		if object.Err != nil {
+			return nil, object.Err
+		}
+		objects.Objects[object.Key] = struct{}{}
+	}
+
+	return objects, nil
+}
+
+// 删除Minio中的文件
+func (s *MinioService) removeObject(objectPath string) error {
+	return s.client.RemoveObject(context.Background(), s.config.Minio.Bucket, objectPath, minio.RemoveObjectOptions{})
+}
+
 func (s *MinioService) UploadDirectory(localPath, minioPath string) error {
 	s.uploadMutex.Lock()
 	defer s.uploadMutex.Unlock()
+
+	// 获取Minio中现有的文件列表
+	existingObjects, err := s.listObjects(minioPath)
+	if err != nil {
+		return fmt.Errorf("获取Minio文件列表失败: %v", err)
+	}
+
+	// 创建一个新的map来跟踪处理过的文件
+	processedFiles := make(map[string]struct{})
 
 	// 确保本地路径存在
 	if _, err := os.Stat(localPath); os.IsNotExist(err) {
@@ -125,7 +167,7 @@ func (s *MinioService) UploadDirectory(localPath, minioPath string) error {
 	}
 
 	// 遍历目录
-	return filepath.Walk(localPath, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(localPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -147,6 +189,9 @@ func (s *MinioService) UploadDirectory(localPath, minioPath string) error {
 		// 构造 Minio 对象路径
 		objectName := filepath.Join(minioPath, relPath)
 		objectName = strings.ReplaceAll(objectName, "\\", "/") // Windows 路径修正
+
+		// 标记文件为已处理
+		processedFiles[objectName] = struct{}{}
 
 		// 检查是否需要更新
 		needsUpdate, err := s.needsUpdate(objectName, path)
@@ -197,6 +242,22 @@ func (s *MinioService) UploadDirectory(localPath, minioPath string) error {
 		log.Printf("成功上传文件: %s", objectName)
 		return nil
 	})
+
+	if err != nil {
+		return err
+	}
+
+	// 删除在Minio中存在但本地不存在的文件
+	for objectPath := range existingObjects.Objects {
+		if _, exists := processedFiles[objectPath]; !exists {
+			log.Printf("删除已移除的文件: %s", objectPath)
+			if err := s.removeObject(objectPath); err != nil {
+				log.Printf("删除文件失败 %s: %v", objectPath, err)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (s *MinioService) GetObject(objectPath string) (*minio.Object, error) {
