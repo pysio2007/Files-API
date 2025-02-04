@@ -152,6 +152,14 @@ func (s *MinioService) UploadDirectory(localPath, minioPath string) error {
 	s.uploadMutex.Lock()
 	defer s.uploadMutex.Unlock()
 
+	// 构建完整的本地路径
+	fullPath := filepath.Join(s.config.Git.CachePath, localPath)
+
+	// 确保本地路径存在
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		return fmt.Errorf("本地路径不存在: %s", fullPath)
+	}
+
 	// 获取Minio中现有的文件列表
 	existingObjects, err := s.listObjects(minioPath)
 	if err != nil {
@@ -161,13 +169,8 @@ func (s *MinioService) UploadDirectory(localPath, minioPath string) error {
 	// 创建一个新的map来跟踪处理过的文件
 	processedFiles := make(map[string]struct{})
 
-	// 确保本地路径存在
-	if _, err := os.Stat(localPath); os.IsNotExist(err) {
-		return fmt.Errorf("本地路径不存在: %s", localPath)
-	}
-
 	// 遍历目录
-	err = filepath.Walk(localPath, func(path string, info os.FileInfo, err error) error {
+	err = filepath.Walk(fullPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -180,8 +183,8 @@ func (s *MinioService) UploadDirectory(localPath, minioPath string) error {
 			return nil
 		}
 
-		// 计算相对路径
-		relPath, err := filepath.Rel(localPath, path)
+		// 计算相对路径时使用完整路径
+		relPath, err := filepath.Rel(fullPath, path)
 		if err != nil {
 			return err
 		}
