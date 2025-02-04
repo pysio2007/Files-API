@@ -34,10 +34,11 @@ type Git struct {
 }
 
 type Repository struct {
-	URL       string `yaml:"url"`
-	Branch    string `yaml:"branch"`
-	LocalPath string `yaml:"localPath"`
-	MinioPath string `yaml:"minioPath"`
+	URL           string `yaml:"url"`
+	Branch        string `yaml:"branch"`
+	LocalPath     string `yaml:"localPath"`
+	MinioPath     string `yaml:"minioPath"`
+	CheckInterval string `yaml:"checkInterval"` // 新增：仓库检查间隔
 }
 
 type ExposedPath struct {
@@ -85,10 +86,11 @@ func createDefaultConfig(path string) error {
 			CachePath: ".cache/repos",
 			Repositories: []Repository{
 				{
-					URL:       "https://github.com/user/repo1",
-					Branch:    "main",
-					LocalPath: "docs/repo1",
-					MinioPath: "repo1",
+					URL:           "https://github.com/user/repo1",
+					Branch:        "main",
+					LocalPath:     "docs/repo1",
+					MinioPath:     "repo1",
+					CheckInterval: "1h", // 新增：默认检查间隔
 				},
 			},
 		},
