@@ -117,10 +117,6 @@ func main() {
 	log.Printf("Minio服务器连接正常")
 
 	gitService := service.NewGitService(cfg)
-	docsHandler := handler.NewDocsHandler(minioService, cfg)
-
-	// 启动同步工作池
-	taskChan := startSyncWorkers(2) // 使用2个工作线程
 
 	// 处理单次同步命令
 	if flags.Sync {
@@ -165,47 +161,65 @@ func main() {
 		}
 	}
 
-	// 使用 flags.Skip 替代原有的 skipInitialSync
-	if !flags.Skip {
-		log.Printf("开始初始同步...")
-		for _, repo := range cfg.Git.Repositories {
-			taskChan <- syncTask{
-				repo:         &repo,
-				gitService:   gitService,
-				minioService: minioService,
-			}
-		}
-	} else {
-		log.Printf("已跳过初始同步，等待下一个检查周期...")
-		// 为每个仓库初始化最后同步时间
-		for _, repo := range cfg.Git.Repositories {
-			minioService.InitLastSync(repo.MinioPath)
-		}
-	}
+	// 仅在非 API-only 模式时启动自动同步任务
+	if !cfg.Server.APIOnly {
+		// 启动同步工作池
+		taskChan := startSyncWorkers(2) // 使用2个工作线程
 
-	// 设置定时同步
-	go func() {
-		ticker := time.NewTicker(10 * time.Minute)
-		for range ticker.C {
-			log.Printf("开始定时同步...")
+		if !flags.Skip {
+			log.Printf("开始初始同步...")
 			for _, repo := range cfg.Git.Repositories {
-				// 使用阻塞方式发送任务，确保所有任务都会被处理
-				log.Printf("正在等待同步仓库: %s", repo.URL)
 				taskChan <- syncTask{
 					repo:         &repo,
 					gitService:   gitService,
 					minioService: minioService,
 				}
-				log.Printf("已添加同步任务: %s", repo.URL)
 			}
-			log.Printf("已添加所有同步任务到队列")
+		} else {
+			log.Printf("已跳过初始同步，等待下一个检查周期...")
+			for _, repo := range cfg.Git.Repositories {
+				minioService.InitLastSync(repo.MinioPath)
+			}
 		}
-	}()
+
+		// 定时同步任务
+		go func() {
+			ticker := time.NewTicker(10 * time.Minute)
+			for range ticker.C {
+				log.Printf("开始定时同步...")
+				for _, repo := range cfg.Git.Repositories {
+					log.Printf("正在等待同步仓库: %s", repo.URL)
+					taskChan <- syncTask{
+						repo:         &repo,
+						gitService:   gitService,
+						minioService: minioService,
+					}
+					log.Printf("已添加同步任务: %s", repo.URL)
+				}
+				log.Printf("已添加所有同步任务到队列")
+			}
+		}()
+	} else {
+		log.Printf("API-only 模式，跳过文件同步任务")
+	}
 
 	// 设置路由
-	apiHandler := handler.NewAPIHandler(minioService, cfg)
-	http.Handle("/api/files/", apiHandler) // API 端点
-	http.Handle("/", docsHandler)          // 静态文件访问
+	if cfg.Server.EnableAPI {
+		apiHandler := handler.NewAPIHandler(minioService, cfg)
+		http.Handle("/api/files/", apiHandler) // API 端点
+		log.Printf("API 服务已启用: /api/files/")
+	}
+
+	if !cfg.Server.APIOnly {
+		docsHandler := handler.NewDocsHandler(minioService, cfg)
+		http.Handle("/", docsHandler) // 静态文件访问
+		log.Printf("文件服务已启用: /")
+	}
+
+	// 两个服务都未启用时退出
+	if !cfg.Server.EnableAPI && cfg.Server.APIOnly {
+		log.Fatal("错误: API 和文件服务都未启用")
+	}
 
 	// 启动服务器
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)

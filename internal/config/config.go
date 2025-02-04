@@ -27,8 +27,10 @@ type LogConfig struct {
 }
 
 type Server struct {
-	Port int    `yaml:"port"`
-	Host string `yaml:"host"`
+	Port      int    `yaml:"port"`
+	Host      string `yaml:"host"`
+	EnableAPI bool   `yaml:"enableAPI"` // 新增：是否启用 API
+	APIOnly   bool   `yaml:"apiOnly"`   // 新增：仅启用 API
 }
 
 type Minio struct {
@@ -84,8 +86,10 @@ func LoadConfig(path string) (*Config, error) {
 func createDefaultConfig(path string) error {
 	defaultConfig := Config{
 		Server: Server{
-			Port: 8080,
-			Host: "0.0.0.0",
+			Port:      8080,
+			Host:      "0.0.0.0",
+			EnableAPI: true,  // 默认启用 API
+			APIOnly:   false, // 默认不仅启用 API
 		},
 		Minio: Minio{
 			Endpoint:     "play.min.io",

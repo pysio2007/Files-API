@@ -27,6 +27,52 @@ server:
   host: "0.0.0.0"     # 监听地址
 ```
 
+### 服务配置
+```yaml
+server:
+    port: 8080          # 服务端口
+    host: "0.0.0.0"     # 监听地址
+    enableAPI: true     # 是否启用 API 接口
+    apiOnly: false      # 是否仅使用 API（禁用文件直接访问）
+```
+
+### 服务模式说明
+
+1. 完整模式 (默认)
+   ```yaml
+   enableAPI: true
+   apiOnly: false
+   ```
+   - API 接口可用
+   - 文件直接访问可用
+   - 适合大多数场景
+
+2. 仅 API 模式
+   ```yaml
+   enableAPI: true
+   apiOnly: true
+   ```
+   - 只提供 API 接口
+   - 禁用文件直接访问
+   - 适合需要严格控制访问的场景
+
+3. 仅文件服务模式
+   ```yaml
+   enableAPI: false
+   apiOnly: false
+   ```
+   - 禁用 API 接口
+   - 启用文件直接访问
+   - 适合简单的静态文件服务
+
+4. 无效配置
+   ```yaml
+   enableAPI: false
+   apiOnly: true
+   ```
+   - 错误：两个服务都被禁用
+   - 服务将拒绝启动
+
 ### Minio配置
 ```yaml
 minio:
