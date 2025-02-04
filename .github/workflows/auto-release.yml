@@ -1,0 +1,86 @@
+name: Auto Release
+
+on:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            output: blog-api-linux-amd64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            output: blog-api-linux-arm64
+          - os: ubuntu-latest
+            goos: windows
+            goarch: amd64
+            output: blog-api-windows-amd64.exe
+          
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.23'
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          go build -v -o ${{ matrix.output }}
+
+      - name: Archive artifacts
+        run: |
+          tar czf ${{ matrix.output }}.tar.gz ${{ matrix.output }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ matrix.output }}.tar.gz
+
+  create-release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          COMMIT_HASH=$(git rev-parse --short HEAD)
+          COMMIT_MSG=$(git log -1 --pretty=%B)
+          
+          # Create release with all artifacts
+          gh release create ${COMMIT_HASH} \
+            --title "Release ${COMMIT_HASH}" \
+            --notes "${COMMIT_MSG}" \
+            artifacts/**/*.tar.gz
