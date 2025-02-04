@@ -1,39 +1,93 @@
+<div align="center">
+
+# Files-API
 ![Files-API](https://socialify.git.ci/pysio2007/Files-API/image?custom_description=自动同步Github+Repo到Minio&description=1&font=Inter&forks=1&language=1&name=1&owner=1&pattern=Signal&pulls=1&stargazers=1&theme=Auto)
 
-# Files-API 文件同步服务
+[![GitHub issues](https://img.shields.io/github/issues/pysio2007/Files-API)](https://github.com/pysio2007/Files-API/issues)
+[![GitHub license](https://img.shields.io/github/license/pysio2007/Files-API)](https://github.com/pysio2007/Files-API/blob/main/LICENSE)
+[![GitHub stars](https://img.shields.io/github/stars/pysio2007/Files-API)](https://github.com/pysio2007/Files-API/stargazers)
+[![Go Report Card](https://goreportcard.com/badge/github.com/pysio2007/Files-API)](https://goreportcard.com/report/github.com/pysio2007/Files-API)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/pysio2007/Files-API)](https://github.com/pysio2007/Files-API)
 
-这是一个基于 Go 实现的文件同步和分发服务，用于将 Git 仓库中的文件自动同步到 Minio 对象存储，并提供统一的文件访问接口。
+🚀 一个高性能的 Git 仓库文件同步和分发服务，支持自动同步到 Minio 对象存储。
 
-## 功能特点
+[English](./README_EN.md) | 简体中文
 
-- 支持多 Git 仓库自动同步
-- 支持每个仓库独立配置同步间隔
-- 支持自定义并发上传线程数
-- 增量更新，只同步变更文件
-- 提供统一的文件访问端点
-- 支持自定义访问路径映射
-- SHA1 校验确保文件一致性
-- 异步同步不影响访问性能
-- 文件缓存提升访问速度
+</div>
 
-## 配置说明
+## 📚 目录
 
-服务启动时会检查是否存在 config.yaml，如果不存在，程序将自动生成一个默认配置文件。请编辑 config.yaml 修改服务参数。
+- [✨ 特性](#-特性)
+- [🚀 快速开始](#-快速开始)
+- [📝 配置说明](#-配置说明)
+- [🛠️ API 接口](#️-api-接口)
+- [📈 性能优化](#-性能优化)
+- [🔧 调试指南](#-调试指南)
+- [🤝 参与贡献](#-参与贡献)
+- [📄 开源协议](#-开源协议)
 
-### 基本配置
-```yaml
-server:
-  port: 8080          # 服务端口
-  host: "0.0.0.0"     # 监听地址
+## ✨ 特性
+
+- 🔄 支持多 Git 仓库自动同步
+- ⏱️ 每个仓库可独立配置同步间隔
+- 🚀 自定义并发上传线程数
+- 📝 增量更新，只同步变更文件
+- 🔗 统一的文件访问 API
+- 🎯 自定义访问路径映射
+- 🔒 SHA1 校验确保文件一致性
+- 💫 异步同步不影响访问性能
+- 📦 本地缓存提升访问速度
+
+## 🚀 快速开始
+
+### 环境要求
+
+- Go 1.16+
+- Minio 服务器 (或其他 S3 兼容存储)
+- Git
+
+### 安装
+
+```bash
+# 克隆仓库
+git clone https://github.com/pysio2007/Files-API.git
+cd Files-API
+
+# 安装依赖
+go mod download
+
+# 运行服务
+go run main.go
 ```
 
-### 服务配置
+首次运行时会自动生成默认配置文件 `config.yaml`。
+
+## 📝 配置说明
+
+### 主要配置项
+
 ```yaml
 server:
-    port: 8080          # 服务端口
-    host: "0.0.0.0"     # 监听地址
-    enableAPI: true     # 是否启用 API 接口
-    apiOnly: false      # 是否仅使用 API（禁用文件直接访问）
+    port: 8080
+    host: "0.0.0.0"
+    enableAPI: true      # 是否启用 API 服务
+    apiOnly: false       # 是否仅使用 API（禁用文件直接访问）
+
+minio:
+    endpoint: "play.min.io"
+    accessKey: "your-access-key"
+    secretKey: "your-secret-key"
+    useSSL: true
+    bucket: "documents"
+    usePublicURL: true   # 使用预签名URL直接访问
+    maxWorkers: 16       # 并发上传线程数
+
+cache:
+    enabled: true
+    directory: ".cache/files"
+    maxSize: 1000        # 缓存容量(MB)
+    ttl: "7d"            # 缓存有效期
+    cacheControl: "30d"  # CDN缓存时间
 ```
 
 ### 服务模式说明
@@ -317,7 +371,7 @@ cache:
 - 缓存清理会删除整个缓存目录
 - 清理操作执行后自动退出
 
-## API 接口
+## 🛠️ API 接口
 
 ### 文件列表接口
 
@@ -404,55 +458,14 @@ curl -H "Accept: application/json" http://localhost:8080/api/files/static/images
 curl http://localhost:8080/api/files/static/?page=2&pageSize=50
 ```
 
-## 工作原理
+## 🔄 工作原理
 
 1. 定期从 Git 仓库拉取最新文件
 2. 使用 SHA1 校验检测文件变更
 3. 只上传变更的文件到 Minio
 4. 提供直接的文件访问服务
 
-## 文件访问
-
-### URL 格式
-- `GET /{minioPath}/{filePath}`
-
-### 示例
-```
-# 访问静态资源
-GET /static/images/logo.png
-GET /assets/css/main.css
-
-# 访问其他文件
-GET /public/files/document.pdf
-```
-
-## 同步机制
-
-- 启动时执行初始同步（可使用 --skip 跳过）
-- 根据每个仓库的 checkInterval 定期检查
-- 支持分钟/小时/天/年级别的同步间隔
-- 异步处理不阻塞访问
-- 支持多worker并行同步
-
-## 部署说明
-
-1. 准备环境:
-   ```bash
-   go mod download
-   ```
-
-2. 修改配置:
-   ```bash
-   cp config.example.yaml config.yaml
-   vim config.yaml
-   ```
-
-3. 启动服务:
-   ```bash
-   go run main.go
-   ```
-
-## 性能优化
+## 📈 性能优化
 
 - 文件缓存减少Git操作
 - SHA1增量更新减少传输
@@ -494,6 +507,20 @@ cat logs/Files-API-2025-02-05.log
 tail -f logs/Files-API-2025-02-05.log
 ```
 
-## 许可证
+## 🤝 参与贡献
 
-基于 AGPLv3 许可证开源
+1. Fork 本项目
+2. 创建新特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 提交 Pull Request
+
+## 📄 开源协议
+
+本项目采用 [AGPL-3.0](./LICENSE) 协议开源。
+
+<div align="center">
+
+### 喜欢这个项目？请给它一个 ⭐️
+
+</div>
