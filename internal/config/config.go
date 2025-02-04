@@ -12,6 +12,18 @@ type Config struct {
 	Minio        Minio         `yaml:"minio"`
 	Git          Git           `yaml:"git"`
 	ExposedPaths []ExposedPath `yaml:"exposedPaths"`
+	Logs         LogConfig     `yaml:"logs"` // 新增日志配置
+}
+
+// 新增：日志配置结构
+type LogConfig struct {
+	AccessLog   bool   `yaml:"accessLog"`   // 访问日志
+	ProcessLog  bool   `yaml:"processLog"`  // 处理详情
+	RedirectLog bool   `yaml:"redirectLog"` // 跳转详情
+	PresignLog  bool   `yaml:"presignLog"`  // 预签名URL详情
+	SaveToFile  bool   `yaml:"saveToFile"`  // 是否保存到文件
+	MaxSize     int    `yaml:"maxSize"`     // 日志目录最大大小(MB)
+	Directory   string `yaml:"directory"`   // 日志保存目录
 }
 
 type Server struct {
@@ -101,6 +113,15 @@ func createDefaultConfig(path string) error {
 				URLPath:   "/public-docs",
 				MinioPath: "public",
 			},
+		},
+		Logs: LogConfig{
+			AccessLog:   true,   // 默认开启访问日志
+			ProcessLog:  false,  // 默认关闭处理详情
+			RedirectLog: false,  // 默认关闭跳转详情
+			PresignLog:  false,  // 默认关闭预签名URL详情
+			SaveToFile:  true,   // 默认保存到文件
+			MaxSize:     100,    // 默认100MB
+			Directory:   "logs", // 默认logs目录
 		},
 	}
 

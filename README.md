@@ -55,6 +55,41 @@ exposedPaths:
       minioPath: "static"       # 存储路径前缀
 ```
 
+### 日志配置
+```yaml
+logs:
+    accessLog: true     # 访问日志，记录所有文件请求
+    processLog: false   # 处理详情，记录文件处理过程
+    redirectLog: false  # 跳转详情，记录URL重定向信息
+    presignLog: false   # 预签名URL详情，记录生成的临时访问链接
+    saveToFile: true    # 是否保存日志到文件
+    maxSize: 100        # 日志目录最大容量(MB)
+    directory: "logs"   # 日志保存目录
+```
+
+日志管理功能：
+1. 自动日志轮转
+   - 按天切割日志文件
+   - 自动在每日零点切换新文件
+   - 文件名格式：Files-API-YYYY-MM-DD.log
+
+2. 空间管理
+   - 自动监控日志目录大小
+   - 超过限制时删除最旧的日志
+   - 默认限制 100MB 总容量
+   - 可通过 maxSize 配置调整
+
+3. 日志级别控制
+   - accessLog：记录所有 HTTP 请求
+   - processLog：记录文件处理详情
+   - redirectLog：记录 URL 重定向
+   - presignLog：记录预签名 URL 生成
+
+4. 输出模式
+   - saveToFile=true：同时输出到控制台和文件
+   - saveToFile=false：仅输出到控制台
+   - 默认开启文件保存
+
 ### 时间间隔格式说明
 
 支持的时间间隔格式：
@@ -178,6 +213,41 @@ GET /public/files/document.pdf
 - SHA1增量更新减少传输
 - 异步同步避免阻塞
 - 多worker并行处理
+
+## 调试指南
+
+### 日志调试
+
+1. 完整调试配置
+```yaml
+logs:
+    accessLog: true     # 记录所有访问
+    processLog: true    # 记录处理流程
+    redirectLog: true   # 记录重定向
+    presignLog: true    # 记录临时链接
+    saveToFile: true    # 保存到文件
+    maxSize: 100        # 限制总大小
+    directory: "logs"   # 存储目录
+```
+
+2. 最小日志配置
+```yaml
+logs:
+    accessLog: true     # 仅记录基本访问
+    processLog: false
+    redirectLog: false
+    presignLog: false
+    saveToFile: false   # 仅输出到控制台
+```
+
+3. 查看日志文件
+```bash
+# 查看今日日志
+cat logs/Files-API-2025-02-05.log
+
+# 监控实时日志
+tail -f logs/Files-API-2025-02-05.log
+```
 
 ## 许可证
 

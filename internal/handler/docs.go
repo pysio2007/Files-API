@@ -24,6 +24,11 @@ func NewDocsHandler(minioService *service.MinioService, config *config.Config) *
 }
 
 func (h *DocsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// 访问日志
+	if h.config.Logs.AccessLog {
+		log.Printf("Access: %s %s %s", r.Method, r.URL.Path, r.RemoteAddr)
+	}
+
 	// 移除前导斜杠
 	filePath := strings.TrimPrefix(r.URL.Path, "/")
 	if filePath == "" {
@@ -65,6 +70,9 @@ func (h *DocsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if h.config.Minio.UsePublicURL {
 		publicURL := h.minioService.GetPublicURL(filePath)
 		if publicURL != "" {
+			if h.config.Logs.RedirectLog {
+				log.Printf("Redirect: %s -> %s", r.URL.Path, publicURL)
+			}
 			http.Redirect(w, r, publicURL, http.StatusFound)
 			return
 		}

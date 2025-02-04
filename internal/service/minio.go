@@ -248,6 +248,9 @@ func (s *MinioService) UploadDirectory(localPath, minioPath string, checkInterva
 	worker := func() {
 		defer wg.Done()
 		for job := range jobChan {
+			if s.config.Logs.ProcessLog {
+				log.Printf("Processing: %s -> %s", job.fullLocalPath, job.objectName)
+			}
 			// 标记已处理文件
 			pfMutex.Lock()
 			processedFiles[job.objectName] = struct{}{}
@@ -362,7 +365,13 @@ func (s *MinioService) GetPublicURL(objectPath string) string {
 		nil,
 	)
 	if err != nil {
+		if s.config.Logs.PresignLog {
+			log.Printf("PreSign failed: %s: %v", objectPath, err)
+		}
 		return ""
+	}
+	if s.config.Logs.PresignLog {
+		log.Printf("PreSign success: %s -> %s", objectPath, presignedURL.String())
 	}
 	return presignedURL.String()
 }

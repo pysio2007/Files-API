@@ -9,6 +9,7 @@ import (
 
 	"pysio.online/Files-API/internal/config"
 	"pysio.online/Files-API/internal/handler"
+	"pysio.online/Files-API/internal/logger"
 	"pysio.online/Files-API/internal/service"
 )
 
@@ -45,15 +46,23 @@ func startSyncWorkers(numWorkers int) chan<- syncTask {
 }
 
 func main() {
+	// 加载配置文件
+	cfg, err := config.LoadConfig("config.yaml")
+	if err != nil {
+		log.Fatalf("加载配置文件失败: %v", err)
+	}
+
+	// 初始化日志系统
+	logManager, err := logger.New(&cfg.Logs)
+	if err != nil {
+		log.Fatalf("初始化日志系统失败: %v", err)
+	}
+	defer logManager.Close()
+
 	// 添加命令行参数
 	skipInitialSync := flag.Bool("skip", false, "跳过首次同步，等待下一个检查周期")
 	flag.Parse()
 
-	log.Printf("正在加载配置文件...")
-	cfg, err := config.LoadConfig("config.yaml") // 改为使用根目录的配置文件
-	if err != nil {
-		log.Fatalf("加载配置文件失败: %v", err)
-	}
 	log.Printf("配置文件加载成功")
 
 	// 初始化服务
