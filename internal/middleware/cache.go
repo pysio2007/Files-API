@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -173,31 +174,60 @@ func (cm *CacheMiddleware) Middleware(next http.Handler) http.Handler {
 	})
 }
 
+// 检查缓存是否过期
+func (cm *CacheMiddleware) isExpired(path string, isAPI bool) (bool, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return true, err
+	}
+
+	var ttl time.Duration
+	if isAPI {
+		// API 使用 apiCacheControl 作为 TTL
+		ttl, err = parseDuration(cm.config.APICacheControl)
+	} else {
+		// 文件使用 cacheControl 作为 TTL
+		ttl, err = parseDuration(cm.config.CacheControl)
+	}
+	if err != nil {
+		return true, err
+	}
+
+	return time.Since(info.ModTime()) > ttl, nil
+}
+
+// 删除过期的缓存文件
+func (cm *CacheMiddleware) removeExpiredCache(path string) {
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		log.Printf("删除过期缓存文件失败 %s: %v", path, err)
+	}
+	metaPath := path + ".meta"
+	if err := os.Remove(metaPath); err != nil && !os.IsNotExist(err) {
+		log.Printf("删除过期缓存元数据失败 %s: %v", metaPath, err)
+	}
+}
+
 func (cm *CacheMiddleware) getFromCache(path string) ([]byte, map[string]string, bool) {
 	cm.cacheMutex.RLock()
 	defer cm.cacheMutex.RUnlock()
+
+	// 判断是否是 API 请求
+	isAPI := strings.Contains(path, "/api/")
+
+	// 检查是否过期
+	expired, err := cm.isExpired(path, isAPI)
+	if err != nil || expired {
+		if expired {
+			// 立即删除过期缓存
+			go cm.removeExpiredCache(path)
+		}
+		return nil, nil, false
+	}
 
 	// 读取缓存元数据
 	metaPath := path + ".meta"
 	metaData, err := os.ReadFile(metaPath)
 	if err != nil {
-		return nil, nil, false
-	}
-
-	// 解析元数据
-	var headers map[string]string
-	ttl, err := parseDuration(cm.config.TTL)
-	if err != nil {
-		log.Printf("解析缓存TTL失败: %v", err)
-		return nil, nil, false
-	}
-
-	// 检查是否过期
-	info, err := os.Stat(path)
-	if err != nil || time.Since(info.ModTime()) > ttl {
-		if cm.config.CacheLog {
-			log.Printf("Cache expired: %s", path)
-		}
 		return nil, nil, false
 	}
 
@@ -207,9 +237,15 @@ func (cm *CacheMiddleware) getFromCache(path string) ([]byte, map[string]string,
 		return nil, nil, false
 	}
 
+	var headers map[string]string
 	if err := json.Unmarshal(metaData, &headers); err != nil {
 		return nil, nil, false
 	}
+
+	// 更新访问时间
+	now := time.Now()
+	os.Chtimes(path, now, now)
+	os.Chtimes(metaPath, now, now)
 
 	return content, headers, true
 }
@@ -241,38 +277,23 @@ func (cm *CacheMiddleware) saveToCache(path string, content []byte, headers map[
 	}
 }
 
-func (cm *CacheMiddleware) cleanupRoutine() {
-	ticker := time.NewTicker(6 * time.Hour)
-	for range ticker.C {
-		cm.cleanup()
-	}
-}
-
 func (cm *CacheMiddleware) cleanup() {
 	cm.cacheMutex.Lock()
 	defer cm.cacheMutex.Unlock()
 
 	var totalSize int64
-	ttl, err := parseDuration(cm.config.TTL)
-	if err != nil {
-		log.Printf("解析缓存TTL失败: %v", err)
-		return
-	}
-
-	cutoff := time.Now().Add(-ttl)
-
 	// 遍历缓存目录
-	err = filepath.Walk(cm.config.Directory, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(cm.config.Directory, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if !info.IsDir() {
-			if info.ModTime().Before(cutoff) {
-				os.Remove(path)
-				if cm.config.CacheLog {
-					log.Printf("Removed expired cache: %s", path)
-				}
+		if !info.IsDir() && !strings.HasSuffix(path, ".meta") {
+			isAPI := strings.Contains(path, "/api/")
+			expired, err := cm.isExpired(path, isAPI)
+			if err != nil || expired {
+				// 删除过期文件
+				cm.removeExpiredCache(path)
 			} else {
 				totalSize += info.Size()
 			}
@@ -285,12 +306,83 @@ func (cm *CacheMiddleware) cleanup() {
 		return
 	}
 
-	// 检查缓存大小是否超过限制
+	// 检查缓存大小
 	maxSize := int64(cm.config.MaxSize) * 1024 * 1024
 	if totalSize > maxSize {
-		if cm.config.CacheLog {
-			log.Printf("Cache size exceeded limit: %d MB", cm.config.MaxSize)
+		if err := cm.cleanupLRU(totalSize, maxSize); err != nil {
+			log.Printf("LRU缓存清理失败: %v", err)
 		}
-		// TODO: 实现基于LRU的缓存清理
 	}
+}
+
+// LRU缓存清理
+func (cm *CacheMiddleware) cleanupLRU(totalSize, maxSize int64) error {
+	var items []cacheItem
+
+	// 收集所有缓存项信息
+	err := filepath.Walk(cm.config.Directory, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && !strings.HasSuffix(path, ".meta") {
+			items = append(items, cacheItem{
+				path:     path,
+				size:     info.Size(),
+				lastUsed: info.ModTime(),
+				metaPath: path + ".meta",
+			})
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("walk cache directory failed: %v", err)
+	}
+
+	// 按最后访问时间排序
+	sort.Slice(items, func(i, j int) bool {
+		return items[i].lastUsed.Before(items[j].lastUsed)
+	})
+
+	// 从最旧的开始删除，直到总大小低于限制
+	for i := 0; i < len(items) && totalSize > maxSize; i++ {
+		item := items[i]
+
+		// 删除缓存文件
+		if err := os.Remove(item.path); err != nil {
+			log.Printf("删除缓存文件失败 %s: %v", item.path, err)
+			continue
+		}
+
+		// 删除元数据文件
+		if err := os.Remove(item.metaPath); err != nil {
+			log.Printf("删除元数据文件失败 %s: %v", item.metaPath, err)
+		}
+
+		totalSize -= item.size
+		if cm.config.CacheLog {
+			log.Printf("LRU清理: 删除文件 %s (已释放: %d bytes)", item.path, item.size)
+		}
+	}
+
+	if cm.config.CacheLog {
+		log.Printf("LRU缓存清理完成，当前大小: %d MB", totalSize/1024/1024)
+	}
+
+	return nil
+}
+
+// 更频繁地运行清理
+func (cm *CacheMiddleware) cleanupRoutine() {
+	ticker := time.NewTicker(15 * time.Minute) // 每15分钟检查一次
+	for range ticker.C {
+		cm.cleanup()
+	}
+}
+
+// 缓存项信息
+type cacheItem struct {
+	path     string    // 缓存文件路径
+	size     int64     // 文件大小
+	lastUsed time.Time // 最后访问时间
+	metaPath string    // 元数据文件路径
 }
