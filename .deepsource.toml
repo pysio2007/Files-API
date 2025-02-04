@@ -1,0 +1,11 @@
+version = 1
+
+[[analyzers]]
+name = "go"
+
+  [analyzers.meta]
+  import_root = "github.com/pysio2007/Files-API"
+  dependencies_vendored = true
+
+[[transformers]]
+name = "gofumpt"
