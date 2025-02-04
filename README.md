@@ -14,7 +14,7 @@
 
 ## 配置说明
 
-服务启动时会自动从 `config.example.yaml` 创建 `config.yaml`。修改 `config.yaml` 以配置服务参数。
+服务启动时会检查是否存在 config.yaml，如果不存在，程序将自动生成一个默认配置文件。请编辑 config.yaml 修改服务参数。
 
 ### 基本配置
 ```yaml
