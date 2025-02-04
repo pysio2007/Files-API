@@ -224,6 +224,93 @@ logs:
 - 缓存清理会删除整个缓存目录
 - 清理操作执行后自动退出
 
+## API 接口
+
+### 文件列表接口
+
+获取指定目录下的文件和子目录列表。
+
+```http
+GET /api/files/{path}?page=1&pageSize=20
+```
+
+参数说明：
+- `path`: 可选，目录路径
+- `page`: 可选，页码，默认 1
+- `pageSize`: 可选，每页条数，默认 20，最大 100
+
+响应格式：
+```json
+{
+    "code": 200,
+    "message": "success",
+    "data": [
+        {
+            "name": "images",
+            "path": "static/images/",
+            "isDirectory": true
+        },
+        {
+            "name": "logo.png",
+            "path": "static/logo.png",
+            "size": 12345,
+            "lastModified": "2024-02-05T12:34:56Z",
+            "isDirectory": false,
+            "url": "https://..."
+        }
+    ],
+    "pagination": {
+        "current": 1,
+        "pageSize": 20,
+        "total": 42
+    }
+}
+```
+
+响应字段说明：
+1. 文件信息 (FileInfo)
+   - `name`: 文件名或目录名
+   - `path`: 完整路径
+   - `size`: 文件大小（字节）
+   - `lastModified`: 最后修改时间
+   - `isDirectory`: 是否是目录
+   - `url`: 文件访问链接（仅当配置 usePublicURL=true 时提供）
+
+2. 分页信息 (pagination)
+   - `current`: 当前页码
+   - `pageSize`: 每页条数
+   - `total`: 总条数
+
+### 文件访问接口
+
+直接访问文件内容。
+
+```http
+GET /{minioPath}/{filePath}
+```
+
+访问模式：
+1. 重定向模式（usePublicURL=true）
+   - 返回 302 重定向到预签名 URL
+   - URL 有效期为 1 小时
+
+2. 代理模式（usePublicURL=false）
+   - 直接返回文件内容
+   - 自动设置正确的 Content-Type
+   - 支持大文件传输
+
+示例：
+```bash
+# 访问文件
+GET /static/images/logo.png
+
+# 带 Accept 头获取 JSON 格式的文件信息
+curl -H "Accept: application/json" http://localhost:8080/api/files/static/images/
+
+# 分页查询
+curl http://localhost:8080/api/files/static/?page=2&pageSize=50
+```
+
 ## 工作原理
 
 1. 定期从 Git 仓库拉取最新文件
