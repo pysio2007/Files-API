@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 type CliFlags struct {
@@ -134,49 +135,64 @@ func UncompressLogs(directory string) error {
 	}
 
 	for _, zipFile := range zipFiles {
+		// 先打开zip文件
 		reader, err := zip.OpenReader(zipFile)
 		if err != nil {
 			log.Printf("打开zip文件失败 %s: %v", zipFile, err)
 			continue
 		}
 
-		for _, file := range reader.File {
-			// 创建日志文件
-			logName := strings.TrimSuffix(zipFile, ".zip") + ".log"
-			logFile, err := os.Create(logName)
-			if err != nil {
-				log.Printf("创建日志文件失败 %s: %v", logName, err)
+		// 确保 reader 在函数结束时关闭
+		func() {
+			defer reader.Close()
+
+			for _, file := range reader.File {
+				// 创建日志文件
+				logName := strings.TrimSuffix(zipFile, ".zip") + ".log"
+				logFile, err := os.Create(logName)
+				if err != nil {
+					log.Printf("创建日志文件失败 %s: %v", logName, err)
+					continue
+				}
+
+				// 使用闭包确保文件句柄及时关闭
+				func() {
+					defer logFile.Close()
+
+					// 打开zip中的文件
+					rc, err := file.Open()
+					if err != nil {
+						log.Printf("打开zip条目失败 %s: %v", file.Name, err)
+						return
+					}
+					defer rc.Close()
+
+					// 复制内容
+					if _, err := io.Copy(logFile, rc); err != nil {
+						log.Printf("解压文件失败 %s: %v", file.Name, err)
+						return
+					}
+				}()
+			}
+		}()
+
+		// 等待一小段时间确保所有句柄都已关闭
+		time.Sleep(100 * time.Millisecond)
+
+		// 删除zip文件
+		for i := 0; i < 3; i++ { // 最多尝试3次
+			err := os.Remove(zipFile)
+			if err == nil {
+				log.Printf("已解压并删除: %s", zipFile)
+				break
+			}
+			if i < 2 { // 如果不是最后一次尝试，则等待后重试
+				log.Printf("删除失败，等待重试: %s: %v", zipFile, err)
+				time.Sleep(500 * time.Millisecond)
 				continue
 			}
-
-			// 打开zip中的文件
-			rc, err := file.Open()
-			if err != nil {
-				log.Printf("打开zip条目失败 %s: %v", file.Name, err)
-				logFile.Close()
-				continue
-			}
-
-			// 复制内容
-			if _, err := io.Copy(logFile, rc); err != nil {
-				log.Printf("解压文件失败 %s: %v", file.Name, err)
-				rc.Close()
-				logFile.Close()
-				continue
-			}
-
-			rc.Close()
-			logFile.Close()
-
-			// 删除zip文件
-			if err := os.Remove(zipFile); err != nil {
-				log.Printf("删除zip文件失败 %s: %v", zipFile, err)
-				continue
-			}
-
-			log.Printf("已解压日志文件: %s -> %s", zipFile, logName)
+			log.Printf("删除zip文件失败 %s: %v", zipFile, err)
 		}
-		reader.Close()
 	}
 
 	return nil
