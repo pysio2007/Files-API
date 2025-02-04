@@ -110,7 +110,7 @@ func (s *MinioService) needsUpdate(objectName, localPath string) (bool, error) {
 	}
 
 	// 调试输出：打印远程所有元数据和本地SHA1
-	log.Printf("检查文件: %s, localSHA1: %s, remote元数据: %+v", objectName, localSHA1, stat.UserMetadata)
+	// log.Printf("检查文件: %s, localSHA1: %s, remote元数据: %+v", objectName, localSHA1, stat.UserMetadata)
 
 	// 使用 "Sha1" 键进行检查
 	remoteSHA1, ok := stat.UserMetadata["Sha1"]
