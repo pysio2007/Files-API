@@ -458,6 +458,46 @@ curl -H "Accept: application/json" http://localhost:8080/api/files/static/images
 curl http://localhost:8080/api/files/static/?page=2&pageSize=50
 ```
 
+### 同步状态接口
+
+获取所有仓库的同步状态信息。
+
+```http
+GET /api/files/sync/status
+```
+
+响应格式：
+```json
+{
+    "code": 200,
+    "message": "success",
+    "data": {
+        "repo1": {
+            "lastSync": "2024-02-05T12:34:56Z",  // 最后同步时间
+            "nextSync": "2024-02-05T13:34:56Z",  // 下次同步时间
+            "progress": 100,                      // 同步进度(0-100)
+            "totalFiles": 50,                     // 总文件数
+            "currentFiles": 50,                   // 已处理文件数
+            "status": "idle"                      // 状态(idle/syncing/error)
+        }
+    }
+}
+```
+
+状态说明：
+- `idle`: 空闲状态，等待下次同步
+- `syncing`: 正在同步
+- `error`: 同步出错，查看 error 字段获取详细信息
+
+监控示例：
+```bash
+# 查看同步状态
+curl http://localhost:8080/api/files/sync/status
+
+# 使用 watch 监控同步进度
+watch -n 1 'curl -s http://localhost:8080/api/files/sync/status | jq'
+```
+
 ## 🔄 工作原理
 
 1. 定期从 Git 仓库拉取最新文件

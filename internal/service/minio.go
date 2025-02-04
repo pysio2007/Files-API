@@ -46,10 +46,23 @@ func getContentType(filename string) string {
 }
 
 type MinioService struct {
-	client    *minio.Client
-	config    *config.Config
-	lastSync  map[string]time.Time // 新增：记录每个仓库最后同步时间
-	syncMutex sync.Mutex           // 新增：保护 lastSync map 的互斥锁
+	client      *minio.Client
+	config      *config.Config
+	lastSync    map[string]time.Time   // 新增：记录每个仓库最后同步时间
+	syncMutex   sync.Mutex             // 新增：保护 lastSync map 的互斥锁
+	syncStatus  map[string]*SyncStatus // 新增：同步状态追踪
+	statusMutex sync.RWMutex           // 新增：状态锁
+}
+
+// 新增：同步状态结构
+type SyncStatus struct {
+	LastSync     time.Time `json:"lastSync"`        // 最后同步时间
+	NextSync     time.Time `json:"nextSync"`        // 下次同步时间
+	Progress     float64   `json:"progress"`        // 同步进度(0-100)
+	TotalFiles   int       `json:"totalFiles"`      // 总文件数
+	CurrentFiles int       `json:"currentFiles"`    // 已处理文件数
+	Status       string    `json:"status"`          // 同步状态(idle/syncing/error)
+	Error        string    `json:"error,omitempty"` // 错误信息
 }
 
 func NewMinioService(config *config.Config) (*MinioService, error) {
@@ -61,9 +74,10 @@ func NewMinioService(config *config.Config) (*MinioService, error) {
 		return nil, err
 	}
 	return &MinioService{
-		client:   client,
-		config:   config,
-		lastSync: make(map[string]time.Time),
+		client:     client,
+		config:     config,
+		lastSync:   make(map[string]time.Time),
+		syncStatus: make(map[string]*SyncStatus),
 	}, nil
 }
 
@@ -195,7 +209,52 @@ func (s *MinioService) InitLastSync(minioPath string) {
 	log.Printf("初始化同步时间: %s", minioPath)
 }
 
+// 新增：更新同步状态
+func (s *MinioService) updateSyncStatus(minioPath string, update func(*SyncStatus)) {
+	s.statusMutex.Lock()
+	defer s.statusMutex.Unlock()
+
+	status, exists := s.syncStatus[minioPath]
+	if !exists {
+		status = &SyncStatus{Status: "idle"}
+		s.syncStatus[minioPath] = status
+	}
+	update(status)
+}
+
+// 新增：获取同步状态
+func (s *MinioService) GetSyncStatus(minioPath string) *SyncStatus {
+	s.statusMutex.RLock()
+	defer s.statusMutex.RUnlock()
+
+	if status, exists := s.syncStatus[minioPath]; exists {
+		return status
+	}
+	return &SyncStatus{Status: "unknown"}
+}
+
 func (s *MinioService) UploadDirectory(localPath, minioPath string, checkInterval time.Duration) error {
+	// 更新同步开始状态
+	s.updateSyncStatus(minioPath, func(status *SyncStatus) {
+		status.Status = "syncing"
+		status.Progress = 0
+		status.CurrentFiles = 0
+		status.Error = ""
+		status.LastSync = time.Now()
+		if checkInterval > 0 {
+			status.NextSync = time.Now().Add(checkInterval)
+		}
+	})
+
+	defer func() {
+		if r := recover(); r != nil {
+			s.updateSyncStatus(minioPath, func(status *SyncStatus) {
+				status.Status = "error"
+				status.Error = fmt.Sprintf("panic: %v", r)
+			})
+		}
+	}()
+
 	// 修改检查逻辑：当 checkInterval 为 0 时强制同步
 	if checkInterval > 0 && !s.shouldSync(minioPath, checkInterval) {
 		log.Printf("跳过同步，未到检查时间: %s", minioPath)
@@ -350,6 +409,13 @@ func (s *MinioService) UploadDirectory(localPath, minioPath string, checkInterva
 			}
 		}
 	}
+
+	// 更新进度
+	s.updateSyncStatus(minioPath, func(status *SyncStatus) {
+		status.Status = "idle"
+		status.Progress = 100
+		status.LastSync = time.Now()
+	})
 
 	return nil
 }

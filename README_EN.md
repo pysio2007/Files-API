@@ -410,6 +410,46 @@ curl -H "Accept: application/json" http://localhost:8080/api/files/static/images
 curl http://localhost:8080/api/files/static/?page=2&pageSize=50
 ```
 
+### Sync Status API
+
+Get synchronization status for all repositories.
+
+```http
+GET /api/files/sync/status
+```
+
+Response Format:
+```json
+{
+    "code": 200,
+    "message": "success",
+    "data": {
+        "repo1": {
+            "lastSync": "2024-02-05T12:34:56Z",  // Last sync time
+            "nextSync": "2024-02-05T13:34:56Z",  // Next scheduled sync
+            "progress": 100,                      // Sync progress (0-100)
+            "totalFiles": 50,                     // Total files
+            "currentFiles": 50,                   // Processed files
+            "status": "idle"                      // Status (idle/syncing/error)
+        }
+    }
+}
+```
+
+Status Descriptions:
+- `idle`: Waiting for next sync
+- `syncing`: Currently synchronizing
+- `error`: Sync failed, check error field for details
+
+Monitoring Examples:
+```bash
+# Check sync status
+curl http://localhost:8080/api/files/sync/status
+
+# Monitor progress with watch
+watch -n 1 'curl -s http://localhost:8080/api/files/sync/status | jq'
+```
+
 ### API Cache Control
 
 The service supports different caching strategies for API responses and static files:

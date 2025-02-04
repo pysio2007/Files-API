@@ -50,6 +50,13 @@ type FileInfo struct {
 	URL          string    `json:"url,omitempty"` // 访问URL（仅文件有）
 }
 
+// 新增：同步状态响应结构
+type SyncStatusResponse struct {
+	Code    int                            `json:"code"`
+	Message string                         `json:"message"`
+	Data    map[string]*service.SyncStatus `json:"data"`
+}
+
 func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 设置 JSON 响应头
 	w.Header().Set("Content-Type", "application/json")
@@ -60,6 +67,12 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// 访问日志
 	if h.config.Logs.AccessLog {
 		log.Printf("API Access: %s %s %s", r.Method, r.URL.Path, r.RemoteAddr)
+	}
+
+	// 添加新的路由
+	if strings.HasSuffix(r.URL.Path, "/sync/status") {
+		h.handleSyncStatus(w, r)
+		return
 	}
 
 	// 分页参数
@@ -142,6 +155,30 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		PageSize: pageSize,
 		Total:    total,
 	})
+}
+
+// 新增：处理同步状态请求
+func (h *APIHandler) handleSyncStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		h.responseError(w, http.StatusMethodNotAllowed, "方法不允许")
+		return
+	}
+
+	// 收集所有仓库的同步状态
+	statuses := make(map[string]*service.SyncStatus)
+	for _, repo := range h.config.Git.Repositories {
+		status := h.minioService.GetSyncStatus(repo.MinioPath)
+		statuses[repo.MinioPath] = status
+	}
+
+	response := SyncStatusResponse{
+		Code:    200,
+		Message: "success",
+		Data:    statuses,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }
 
 func (h *APIHandler) responseSuccess(w http.ResponseWriter, data interface{}, pagination *Pagination) {
