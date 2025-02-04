@@ -29,6 +29,17 @@ func (h *DocsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Printf("Access: %s %s %s", r.Method, r.URL.Path, r.RemoteAddr)
 	}
 
+	// 处理旧版 API 格式
+	if h.config.Server.LegacyAPI && strings.HasPrefix(r.URL.Path, "/files/") {
+		// 移除 "/files/" 前缀
+		newPath := strings.TrimPrefix(r.URL.Path, "/files/")
+		if h.config.Logs.RedirectLog {
+			log.Printf("Legacy API redirect: %s -> /%s", r.URL.Path, newPath)
+		}
+		http.Redirect(w, r, "/"+newPath, http.StatusMovedPermanently)
+		return
+	}
+
 	// 移除前导斜杠
 	filePath := strings.TrimPrefix(r.URL.Path, "/")
 	if filePath == "" {

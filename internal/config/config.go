@@ -46,6 +46,7 @@ type Server struct {
 	Host      string `yaml:"host"`
 	EnableAPI bool   `yaml:"enableAPI"` // 新增：是否启用 API
 	APIOnly   bool   `yaml:"apiOnly"`   // 新增：仅启用 API
+	LegacyAPI bool   `yaml:"legacyAPI"` // 是否支持旧版API格式
 }
 
 type Minio struct {
@@ -105,6 +106,7 @@ func createDefaultConfig(path string) error {
 			Host:      "0.0.0.0",
 			EnableAPI: true,  // 默认启用 API
 			APIOnly:   false, // 默认不仅启用 API
+			LegacyAPI: false, // 默认不启用旧版API支持
 		},
 		Minio: Minio{
 			Endpoint:     "play.min.io",
