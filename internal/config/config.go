@@ -12,7 +12,8 @@ type Config struct {
 	Minio        Minio         `yaml:"minio"`
 	Git          Git           `yaml:"git"`
 	ExposedPaths []ExposedPath `yaml:"exposedPaths"`
-	Logs         LogConfig     `yaml:"logs"` // 新增日志配置
+	Logs         LogConfig     `yaml:"logs"`
+	Cache        CacheConfig   `yaml:"cache"` // 新增缓存配置
 }
 
 // 新增：日志配置结构
@@ -24,6 +25,19 @@ type LogConfig struct {
 	SaveToFile  bool   `yaml:"saveToFile"`  // 是否保存到文件
 	MaxSize     int    `yaml:"maxSize"`     // 日志目录最大大小(MB)
 	Directory   string `yaml:"directory"`   // 日志保存目录
+}
+
+// 新增：缓存配置结构
+type CacheConfig struct {
+	Enabled         bool   `yaml:"enabled"`         // 是否启用缓存
+	Directory       string `yaml:"directory"`       // 缓存目录
+	MaxSize         int    `yaml:"maxSize"`         // 缓存目录最大大小(MB)
+	TTL             string `yaml:"ttl"`             // 缓存有效期
+	CacheControl    string `yaml:"cacheControl"`    // CDN缓存时间
+	CacheLog        bool   `yaml:"cacheLog"`        // 是否记录缓存操作日志
+	HitLog          bool   `yaml:"hitLog"`          // 是否记录缓存命中日志
+	EnableAPICache  bool   `yaml:"enableAPICache"`  // 是否启用API缓存控制
+	APICacheControl string `yaml:"apiCacheControl"` // API缓存控制时间
 }
 
 type Server struct {
@@ -126,6 +140,17 @@ func createDefaultConfig(path string) error {
 			SaveToFile:  true,   // 默认保存到文件
 			MaxSize:     100,    // 默认100MB
 			Directory:   "logs", // 默认logs目录
+		},
+		Cache: CacheConfig{
+			Enabled:         true,
+			Directory:       ".cache/files",
+			MaxSize:         1000,  // 默认1GB
+			TTL:             "7d",  // 默认7天
+			CacheControl:    "30d", // CDN缓存30天
+			CacheLog:        false, // 默认不记录缓存操作
+			HitLog:          false, // 默认不记录命中日志
+			EnableAPICache:  true,  // 默认启用API缓存控制
+			APICacheControl: "5m",  // API默认缓存5分钟
 		},
 	}
 

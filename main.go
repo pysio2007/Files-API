@@ -203,16 +203,22 @@ func main() {
 		log.Printf("API-only 模式，跳过文件同步任务")
 	}
 
+	// 在路由注册前初始化缓存中间件
+	cacheMiddleware, err := middleware.NewCacheMiddleware(&cfg.Cache)
+	if err != nil {
+		log.Fatalf("初始化缓存中间件失败: %v", err)
+	}
+
 	// 设置路由
 	if cfg.Server.EnableAPI {
 		apiHandler := handler.NewAPIHandler(minioService, cfg)
-		http.Handle("/api/files/", apiHandler) // API 端点
+		http.Handle("/api/files/", cacheMiddleware.Middleware(apiHandler))
 		log.Printf("API 服务已启用: /api/files/")
 	}
 
 	if !cfg.Server.APIOnly {
 		docsHandler := handler.NewDocsHandler(minioService, cfg)
-		http.Handle("/", docsHandler) // 静态文件访问
+		http.Handle("/", cacheMiddleware.Middleware(docsHandler))
 		log.Printf("文件服务已启用: /")
 	}
 
