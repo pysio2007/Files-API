@@ -200,25 +200,39 @@ func UncompressLogs(directory string) error {
 
 // 新增：清除日志文件
 func ClearLogs(directory string) error {
-	pattern := filepath.Join(directory, "Files-API-*.{log,zip}")
-	files, err := filepath.Glob(pattern)
-	if err != nil {
-		return fmt.Errorf("获取日志文件失败: %v", err)
-	}
-
 	var totalSize int64
 	count := 0
-	for _, file := range files {
-		info, err := os.Stat(file)
-		if err == nil {
-			totalSize += info.Size()
-		}
-		if err := os.Remove(file); err != nil {
-			log.Printf("删除文件失败 %s: %v", file, err)
+
+	// 分别获取 .log 和 .zip 文件
+	patterns := []string{
+		filepath.Join(directory, "Files-API-*.log"),
+		filepath.Join(directory, "Files-API-*.zip"),
+	}
+
+	for _, pattern := range patterns {
+		files, err := filepath.Glob(pattern)
+		if err != nil {
+			log.Printf("获取文件失败 %s: %v", pattern, err)
 			continue
 		}
-		count++
-		log.Printf("已删除: %s", file)
+
+		for _, file := range files {
+			info, err := os.Stat(file)
+			if err == nil {
+				totalSize += info.Size()
+			}
+			if err := os.Remove(file); err != nil {
+				log.Printf("删除文件失败 %s: %v", file, err)
+				continue
+			}
+			count++
+			log.Printf("已删除: %s", file)
+		}
+	}
+
+	if count == 0 {
+		log.Printf("未找到需要清理的日志文件")
+		return nil
 	}
 
 	log.Printf("清理完成: 共删除 %d 个日志文件，释放空间 %.2f MB", count, float64(totalSize)/1024/1024)
