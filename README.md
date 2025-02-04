@@ -72,6 +72,7 @@ server:
     host: "0.0.0.0"
     enableAPI: true      # 是否启用 API 服务
     apiOnly: false       # 是否仅使用 API（禁用文件直接访问）
+    legacyAPI: true      # 启用旧版API支持
 
 minio:
     endpoint: "play.min.io"
@@ -283,6 +284,32 @@ cache:
    - 当 `usePublicURL: false` 或获取公共 URL 失败时
    - 通过应用服务器中转文件内容
    - 适用于内部网络或需要额外控制的场景
+
+### 旧版 API 支持
+
+服务支持自动重定向旧版 API 路径到新版格式：
+
+1. 配置启用：
+```yaml
+server:
+    legacyAPI: true     # 启用旧版API支持
+```
+
+2. 路径映射规则：
+- 旧版：`/files/Pysio-Images/example.png`
+- 新版：`/Pysio-Images/example.png`
+
+3. 重定向说明：
+- 使用 301 永久重定向
+- 自动去除 `/files/` 前缀
+- 保留原始查询参数
+- 记录重定向日志（如果启用）
+
+4. 日志记录：
+```yaml
+logs:
+    redirectLog: true   # 启用重定向日志记录
+```
 
 ### 性能调优
 

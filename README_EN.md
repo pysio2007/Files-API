@@ -99,10 +99,11 @@ A default `config.yaml` will be generated on first run.
 
 ```yaml
 server:
-    port: 8080
-    host: "0.0.0.0"
-    enableAPI: true      # Enable API service
-    apiOnly: false       # API-only mode (disable direct file access)
+    port: 8080          # Server port
+    host: "0.0.0.0"     # Listen address
+    enableAPI: true     # Enable API service
+    apiOnly: false      # API-only mode
+    legacyAPI: true     # Enable legacy API support
 
 minio:
     endpoint: "play.min.io"
@@ -140,6 +141,32 @@ cache:
    - API endpoints only
    - Direct file access disabled
    - For strict access control
+
+### Legacy API Support
+
+The service supports automatic redirection from legacy API paths to the new format:
+
+1. Enable Support:
+```yaml
+server:
+    legacyAPI: true     # Enable legacy API support
+```
+
+2. Path Mapping Rules:
+- Legacy: `/files/Pysio-Images/example.png`
+- New: `/Pysio-Images/example.png`
+
+3. Redirection Details:
+- Uses 301 permanent redirect
+- Automatically removes `/files/` prefix
+- Preserves original query parameters
+- Logs redirections (if enabled)
+
+4. Logging:
+```yaml
+logs:
+    redirectLog: true   # Enable redirection logging
+```
 
 ### Repository Configuration
 ```yaml
