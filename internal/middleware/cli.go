@@ -16,10 +16,11 @@ type CliFlags struct {
 	Skip       bool
 	ZipLogs    bool
 	UnzipLogs  bool
-	Sync       bool // 新增：执行单次同步
-	ClearLogs  bool // 新增：清除所有日志
-	ClearCache bool // 新增：清除缓存目录
-	ClearAll   bool // 新增：清除所有
+	Sync       bool   // 新增：执行单次同步
+	ClearLogs  bool   // 新增：清除所有日志
+	ClearCache bool   // 新增：清除缓存目录
+	ClearAll   bool   // 新增：清除所有
+	RSync      string // 新增：指定要同步的仓库路径
 }
 
 func ParseFlags() *CliFlags {
@@ -36,6 +37,7 @@ func ParseFlags() *CliFlags {
 	flag.BoolVar(&flags.ClearCache, "clear-cache", false, "清除所有缓存")
 	flag.BoolVar(&flags.ClearCache, "cc", false, "清除所有缓存")
 	flag.BoolVar(&flags.ClearAll, "clear-all", false, "清除所有日志和缓存")
+	flag.StringVar(&flags.RSync, "rsync", "", "指定同步的仓库（使用配置中的 minioPath）")
 
 	flag.Usage = showHelp
 	flag.Parse()
@@ -53,6 +55,7 @@ func showHelp() {
   -h, --help           显示帮助信息
   --skip               跳过首次同步，等待下一个检查周期
   --sync              执行单次同步检查后退出
+  --rsync string      指定同步的仓库（例如：--rsync=static）
   --zip-logs          压缩所有日志文件为zip格式
   --unzip-logs        解压所有zip格式的日志文件
   --clear-logs, -cl   清除所有日志文件

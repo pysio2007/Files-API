@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"time"
 
 	"pysio.online/Files-API/internal/config"
@@ -136,6 +137,32 @@ func main() {
 		}
 		log.Printf("单次同步检查完成")
 		return
+	}
+
+	// 新增：处理 rsync 命令
+	if flags.RSync != "" {
+		log.Printf("执行指定仓库同步: %s", flags.RSync)
+		found := false
+		for _, repo := range cfg.Git.Repositories {
+			if repo.MinioPath == flags.RSync {
+				found = true
+				log.Printf("同步仓库: %s", repo.URL)
+				if err := gitService.SyncRepository(&repo); err != nil {
+					log.Printf("同步仓库失败 %s: %v", repo.URL, err)
+					os.Exit(1)
+				}
+				if err := minioService.UploadDirectory(repo.LocalPath, repo.MinioPath, 0); err != nil {
+					log.Printf("上传到Minio失败 %s: %v", repo.MinioPath, err)
+					os.Exit(1)
+				}
+				log.Printf("指定仓库同步完成: %s", repo.MinioPath)
+				os.Exit(0)
+			}
+		}
+		if !found {
+			log.Printf("未找到指定的仓库: %s", flags.RSync)
+			os.Exit(1)
+		}
 	}
 
 	// 使用 flags.Skip 替代原有的 skipInitialSync
