@@ -1,0 +1,55 @@
+# 临时文件
+*.tmp
+*.swp
+*.swo
+*~
+
+# IDE配置
+.idea/
+.vscode/
+*.sublime-workspace
+*.sublime-project
+
+# 编译输出
+bin/
+dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# 测试文件
+*.test
+*.tmp
+*.temp
+
+# 本地配置和密钥
+*.local.yaml
+*.local.yml
+*.env
+*.env.*
+!.env.example
+
+# 配置文件
+config.yaml
+!config.example.yaml
+
+# 依赖目录
+vendor/
+node_modules/
+
+# 缓存目录
+.cache/
+cache/
+
+# 同步的Git仓库本地目录
+repos/*/
+
+# 日志文件
+*.log
+logs/
+
+# 系统文件
+.DS_Store
+Thumbs.db
