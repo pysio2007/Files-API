@@ -46,9 +46,8 @@ func getContentType(filename string) string {
 }
 
 type MinioService struct {
-	client      *minio.Client
-	config      *config.Config
-	uploadMutex sync.Mutex
+	client *minio.Client
+	config *config.Config
 }
 
 func NewMinioService(config *config.Config) (*MinioService, error) {
@@ -149,32 +148,23 @@ func (s *MinioService) removeObject(objectPath string) error {
 }
 
 func (s *MinioService) UploadDirectory(localPath, minioPath string) error {
-	s.uploadMutex.Lock()
-	defer s.uploadMutex.Unlock()
-
 	// 构建完整的本地路径
 	fullPath := filepath.Join(s.config.Git.CachePath, localPath)
-
-	// 确保本地路径存在
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 		return fmt.Errorf("本地路径不存在: %s", fullPath)
 	}
 
-	// 获取Minio中现有的文件列表
-	existingObjects, err := s.listObjects(minioPath)
-	if err != nil {
-		return fmt.Errorf("获取Minio文件列表失败: %v", err)
+	// 先收集所有待处理的文件
+	type fileJob struct {
+		fullLocalPath string
+		objectName    string
+		info          os.FileInfo
 	}
-
-	// 创建一个新的map来跟踪处理过的文件
-	processedFiles := make(map[string]struct{})
-
-	// 遍历目录
-	err = filepath.Walk(fullPath, func(path string, info os.FileInfo, err error) error {
+	var jobs []fileJob
+	err := filepath.Walk(fullPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-
 		// 跳过目录和.git文件夹
 		if info.IsDir() {
 			if info.Name() == ".git" {
@@ -182,77 +172,113 @@ func (s *MinioService) UploadDirectory(localPath, minioPath string) error {
 			}
 			return nil
 		}
-
-		// 计算相对路径时使用完整路径
 		relPath, err := filepath.Rel(fullPath, path)
 		if err != nil {
 			return err
 		}
-
-		// 构造 Minio 对象路径
-		objectName := filepath.Join(minioPath, relPath)
-		objectName = strings.ReplaceAll(objectName, "\\", "/") // Windows 路径修正
-
-		// 标记文件为已处理
-		processedFiles[objectName] = struct{}{}
-
-		// 检查是否需要更新
-		needsUpdate, err := s.needsUpdate(objectName, path)
-		if err != nil {
-			log.Printf("检查文件状态失败 %s: %v", objectName, err)
-			return nil
-		}
-
-		if !needsUpdate {
-			log.Printf("跳过未变更文件: %s", objectName)
-			return nil
-		}
-
-		// 计算SHA1
-		sha1Hash, err := calculateSHA1(path)
-		if err != nil {
-			return err
-		}
-
-		// 打开文件
-		file, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer file.Close()
-
-		// 设置元数据
-		userMetadata := map[string]string{
-			"X-Amz-Meta-Sha1": sha1Hash,
-		}
-
-		// 上传文件
-		_, err = s.client.PutObject(
-			context.Background(),
-			s.config.Minio.Bucket,
-			objectName,
-			file,
-			info.Size(),
-			minio.PutObjectOptions{
-				ContentType:  getContentType(path),
-				UserMetadata: userMetadata,
-			},
-		)
-		if err != nil {
-			return fmt.Errorf("上传失败 %s: %v", objectName, err)
-		}
-
-		log.Printf("成功上传文件: %s", objectName)
+		objName := filepath.Join(minioPath, relPath)
+		objName = strings.ReplaceAll(objName, "\\", "/") // Windows 路径修正
+		jobs = append(jobs, fileJob{fullLocalPath: path, objectName: objName, info: info})
 		return nil
 	})
-
 	if err != nil {
 		return err
 	}
 
-	// 删除在Minio中存在但本地不存在的文件
+	// 并发上传任务，使用工作池处理
+	processedFiles := make(map[string]struct{})
+	var pfMutex sync.Mutex
+	const maxConcurrentUploads = 5
+	jobChan := make(chan fileJob)
+	var wg sync.WaitGroup
+
+	worker := func() {
+		defer wg.Done()
+		for job := range jobChan {
+			// 标记已处理文件
+			pfMutex.Lock()
+			processedFiles[job.objectName] = struct{}{}
+			pfMutex.Unlock()
+
+			// 检查是否需要更新
+			needsUpd, err := s.needsUpdate(job.objectName, job.fullLocalPath)
+			if err != nil {
+				log.Printf("检查文件状态失败 %s: %v", job.objectName, err)
+				continue
+			}
+			if !needsUpd {
+				log.Printf("跳过未变更文件: %s", job.objectName)
+				continue
+			}
+
+			// 计算 SHA1
+			sha1Hash, err := calculateSHA1(job.fullLocalPath)
+			if err != nil {
+				log.Printf("计算文件 %s SHA1失败: %v", job.objectName, err)
+				continue
+			}
+
+			// 打开文件
+			file, err := os.Open(job.fullLocalPath)
+			if err != nil {
+				log.Printf("打开文件失败 %s: %v", job.objectName, err)
+				continue
+			}
+
+			userMetadata := map[string]string{
+				"X-Amz-Meta-Sha1": sha1Hash,
+			}
+			maxRetries := 3
+			var uploadErr error
+			for i := 0; i < maxRetries; i++ {
+				// 重置文件指针以便重传
+				if _, err := file.Seek(0, 0); err != nil {
+					log.Printf("重置文件指针失败 %s: %v", job.objectName, err)
+					break
+				}
+				_, uploadErr = s.client.PutObject(
+					context.Background(),
+					s.config.Minio.Bucket,
+					job.objectName,
+					file,
+					job.info.Size(),
+					minio.PutObjectOptions{
+						ContentType:  getContentType(job.fullLocalPath),
+						UserMetadata: userMetadata,
+					},
+				)
+				if uploadErr == nil {
+					log.Printf("成功上传文件: %s", job.objectName)
+					break
+				}
+				log.Printf("第%d次上传失败 %s: %v", i+1, job.objectName, uploadErr)
+				time.Sleep(2 * time.Second)
+			}
+			file.Close()
+		}
+	}
+
+	wg.Add(maxConcurrentUploads)
+	for i := 0; i < maxConcurrentUploads; i++ {
+		go worker()
+	}
+	// 发送任务
+	for _, job := range jobs {
+		jobChan <- job
+	}
+	close(jobChan)
+	wg.Wait()
+
+	// 删除Minio中存在但本地不存在的文件
+	existingObjects, err := s.listObjects(minioPath)
+	if err != nil {
+		return fmt.Errorf("获取Minio文件列表失败: %v", err)
+	}
 	for objectPath := range existingObjects.Objects {
-		if _, exists := processedFiles[objectPath]; !exists {
+		pfMutex.Lock()
+		_, exists := processedFiles[objectPath]
+		pfMutex.Unlock()
+		if !exists {
 			log.Printf("删除已移除的文件: %s", objectPath)
 			if err := s.removeObject(objectPath); err != nil {
 				log.Printf("删除文件失败 %s: %v", objectPath, err)
