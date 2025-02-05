@@ -47,13 +47,52 @@ func (h *DocsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 获取第一级路径作为minioPath
+	// 获取第一级路径
 	parts := strings.SplitN(filePath, "/", 2)
 	basePath := parts[0]
+	remainingPath := ""
+	if len(parts) > 1 {
+		remainingPath = parts[1]
+	}
 
-	// 验证访问权限
+	// 先检查是否匹配配置的桶
+	var matchedBucket *config.BucketConfig
+	for _, bucket := range h.config.Buckets {
+		if bucket.Name == basePath {
+			matchedBucket = &bucket
+			break
+		}
+	}
+
+	if matchedBucket != nil {
+		// 处理匹配到的桶
+		obj, err := h.minioService.GetObjectFromBucket(matchedBucket.Name, remainingPath)
+		if err != nil {
+			http.Error(w, "文件不存在", http.StatusNotFound)
+			return
+		}
+		defer obj.Close()
+
+		// 获取文件信息
+		info, err := obj.Stat()
+		if err != nil {
+			http.Error(w, "获取文件信息失败", http.StatusInternalServerError)
+			return
+		}
+
+		// 设置响应头
+		w.Header().Set("Content-Type", info.ContentType)
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", info.Size))
+
+		// 输出文件内容
+		if _, err := io.Copy(w, obj); err != nil {
+			log.Printf("发送文件失败 %s: %v", remainingPath, err)
+		}
+		return
+	}
+
+	// 如果不是配置的桶,则按原有逻辑处理
 	authorized := false
-
 	// 检查Git仓库配置
 	for _, repo := range h.config.Git.Repositories {
 		if repo.MinioPath == basePath {

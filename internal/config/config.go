@@ -8,12 +8,13 @@ import (
 )
 
 type Config struct {
-	Server       Server        `yaml:"server"`
-	Minio        Minio         `yaml:"minio"`
-	Git          Git           `yaml:"git"`
-	ExposedPaths []ExposedPath `yaml:"exposedPaths"`
-	Logs         LogConfig     `yaml:"logs"`
-	Cache        CacheConfig   `yaml:"cache"` // 新增缓存配置
+	Server       Server         `yaml:"server"`
+	Minio        Minio          `yaml:"minio"`
+	Git          Git            `yaml:"git"`
+	ExposedPaths []ExposedPath  `yaml:"exposedPaths"`
+	Logs         LogConfig      `yaml:"logs"`
+	Cache        CacheConfig    `yaml:"cache"`   // 新增缓存配置
+	Buckets      []BucketConfig `yaml:"buckets"` // 新增多桶配置
 }
 
 // 新增：日志配置结构
@@ -39,6 +40,18 @@ type CacheConfig struct {
 	EnableAPICache  bool     `yaml:"enableAPICache"`  // 是否启用API缓存控制
 	APICacheControl string   `yaml:"apiCacheControl"` // API缓存控制时间
 	APIExcludePaths []string `yaml:"apiExcludePaths"` // 不缓存的API路径
+}
+
+// 新增存储桶配置结构
+type BucketConfig struct {
+	Name       string `yaml:"name"`
+	Endpoint   string `yaml:"endpoint"`
+	AccessKey  string `yaml:"accessKey"`
+	SecretKey  string `yaml:"secretKey"`
+	UseSSL     bool   `yaml:"useSSL"`
+	BucketName string `yaml:"bucketName"`
+	BasePath   string `yaml:"basePath"` // 基础路径
+	ReadOnly   bool   `yaml:"readOnly"` // 是否只读
 }
 
 type Server struct {
@@ -158,6 +171,18 @@ func createDefaultConfig(path string) error {
 			APICacheControl: "5m",  // API默认缓存5分钟
 			APIExcludePaths: []string{
 				"/api/files/sync/status", // 默认不缓存同步状态接口
+			},
+		},
+		Buckets: []BucketConfig{
+			{
+				Name:       "blog-assets",
+				Endpoint:   "play.min.io",
+				AccessKey:  "bucket1-access-key",
+				SecretKey:  "bucket1-secret-key",
+				UseSSL:     true,
+				BucketName: "blog-assets",
+				BasePath:   "assets",
+				ReadOnly:   true,
 			},
 		},
 	}

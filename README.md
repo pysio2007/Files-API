@@ -331,6 +331,21 @@ logs:
      checkInterval: "1y"   # 1年
      ```
 
+### 多桶配置
+
+服务支持配置多个存储桶,每个桶可以有独立的配置:
+
+```yaml
+minio:
+    buckets:
+        - name: "documents"
+          usePublicURL: true
+          maxWorkers: 16
+        - name: "images"
+          usePublicURL: false
+          maxWorkers: 8
+```
+
 ## 特殊启动参数
 
 ### 跳过首次同步 (--skip)

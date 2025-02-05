@@ -75,6 +75,12 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 处理 PATCH 请求
+	if r.Method == http.MethodPatch {
+		h.handlePatchRequest(w, r)
+		return
+	}
+
 	// 分页参数
 	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 	pageSize, _ := strconv.Atoi(r.URL.Query().Get("pageSize"))
@@ -179,6 +185,65 @@ func (h *APIHandler) handleSyncStatus(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
+}
+
+// 新增 PATCH 请求结构
+type PatchRequest struct {
+	Bucket string `json:"bucket"`
+	Path   string `json:"path"`
+}
+
+// 处理 PATCH 请求
+func (h *APIHandler) handlePatchRequest(w http.ResponseWriter, r *http.Request) {
+	var req PatchRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.responseError(w, http.StatusBadRequest, "无效的请求格式")
+		return
+	}
+
+	// 检查桶是否存在且有权限
+	var bucketConfig *config.BucketConfig
+	for _, b := range h.config.Buckets {
+		if b.Name == req.Bucket {
+			bucketConfig = &b
+			break
+		}
+	}
+
+	if bucketConfig == nil {
+		h.responseError(w, http.StatusNotFound, "存储桶不存在")
+		return
+	}
+
+	if bucketConfig.ReadOnly {
+		h.responseError(w, http.StatusForbidden, "存储桶为只读")
+		return
+	}
+
+	// 获取对象
+	obj, err := h.minioService.GetObjectFromBucket(req.Bucket, req.Path)
+	if err != nil {
+		h.responseError(w, http.StatusNotFound, "文件不存在")
+		return
+	}
+	defer obj.Close()
+
+	// 获取文件信息并返回
+	info, err := obj.Stat()
+	if err != nil {
+		h.responseError(w, http.StatusInternalServerError, "获取文件信息失败")
+		return
+	}
+
+	fileInfo := FileInfo{
+		Name:         path.Base(req.Path),
+		Path:         req.Path,
+		Size:         info.Size,
+		LastModified: info.LastModified,
+		IsDirectory:  false,
+	}
+
+	h.responseSuccess(w, fileInfo, nil)
 }
 
 func (h *APIHandler) responseSuccess(w http.ResponseWriter, data interface{}, pagination *Pagination) {

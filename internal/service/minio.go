@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -48,10 +49,11 @@ func getContentType(filename string) string {
 type MinioService struct {
 	client      *minio.Client
 	config      *config.Config
-	lastSync    map[string]time.Time   // 新增：记录每个仓库最后同步时间
-	syncMutex   sync.Mutex             // 新增：保护 lastSync map 的互斥锁
-	syncStatus  map[string]*SyncStatus // 新增：同步状态追踪
-	statusMutex sync.RWMutex           // 新增：状态锁
+	lastSync    map[string]time.Time     // 新增：记录每个仓库最后同步时间
+	syncMutex   sync.Mutex               // 新增：保护 lastSync map 的互斥锁
+	syncStatus  map[string]*SyncStatus   // 新增：同步状态追踪
+	statusMutex sync.RWMutex             // 新增：状态锁
+	buckets     map[string]*minio.Client // 新增多桶客户端映射
 }
 
 // 新增：同步状态结构
@@ -73,11 +75,26 @@ func NewMinioService(config *config.Config) (*MinioService, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// 初始化多桶客户端
+	buckets := make(map[string]*minio.Client)
+	for _, bucketConfig := range config.Buckets {
+		client, err := minio.New(bucketConfig.Endpoint, &minio.Options{
+			Creds:  credentials.NewStaticV4(bucketConfig.AccessKey, bucketConfig.SecretKey, ""),
+			Secure: bucketConfig.UseSSL,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("初始化桶 %s 失败: %v", bucketConfig.Name, err)
+		}
+		buckets[bucketConfig.Name] = client
+	}
+
 	return &MinioService{
 		client:     client,
 		config:     config,
 		lastSync:   make(map[string]time.Time),
 		syncStatus: make(map[string]*SyncStatus),
+		buckets:    buckets,
 	}, nil
 }
 
@@ -495,4 +512,20 @@ func ensureFilePermissions(path string) error {
 	}
 
 	return nil
+}
+
+// 新增从指定桶获取对象的方法
+func (s *MinioService) GetObjectFromBucket(bucketName, objectPath string) (*minio.Object, error) {
+	for _, bucket := range s.config.Buckets {
+		if bucket.Name == bucketName {
+			client := s.buckets[bucketName]
+			return client.GetObject(
+				context.Background(),
+				bucket.BucketName,
+				path.Join(bucket.BasePath, objectPath),
+				minio.GetObjectOptions{},
+			)
+		}
+	}
+	return nil, fmt.Errorf("bucket not found: %s", bucketName)
 }

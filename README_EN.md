@@ -122,6 +122,21 @@ cache:
     cacheControl: "30d"  # CDN cache time
 ```
 
+### Multi-Bucket Configuration
+
+The service supports configuring multiple storage buckets, each with its own settings:
+
+```yaml
+minio:
+    buckets:
+        - name: "documents"
+          usePublicURL: true
+          maxWorkers: 16
+        - name: "images"
+          usePublicURL: false
+          maxWorkers: 8
+```
+
 ### Service Modes
 
 1. Full Mode (Default)
