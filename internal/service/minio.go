@@ -114,6 +114,16 @@ func calculateSHA1(path string) (string, error) {
 
 // 修改 SHA1 校验，统一使用元数据键 "Sha1"
 func (s *MinioService) needsUpdate(objectName, localPath string) (bool, error) {
+	// 处理路径分隔符
+	objectName = strings.ReplaceAll(objectName, string(os.PathSeparator), "/")
+	localPath = filepath.Clean(localPath)
+
+	// 检查本地文件权限
+	if err := ensureFilePermissions(localPath); err != nil {
+		log.Printf("权限检查失败 %s: %v", localPath, err)
+		return false, err
+	}
+
 	// 获取Minio对象的元数据
 	stat, err := s.client.StatObject(context.Background(), s.config.Minio.Bucket, objectName, minio.StatObjectOptions{})
 	if err != nil {
@@ -264,6 +274,13 @@ func (s *MinioService) UploadDirectory(localPath, minioPath string, checkInterva
 	log.Printf("开始同步目录: %s, 间隔时间: %v", minioPath, checkInterval)
 	// 构建完整的本地路径
 	fullPath := filepath.Join(s.config.Git.CachePath, localPath)
+	fullPath = filepath.Clean(fullPath) // 清理路径
+
+	// 确保目录存在并设置正确权限
+	if err := os.MkdirAll(fullPath, 0755); err != nil {
+		return fmt.Errorf("创建目录失败 %s: %v", fullPath, err)
+	}
+
 	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 		return fmt.Errorf("本地路径不存在: %s", fullPath)
 	}
@@ -277,6 +294,11 @@ func (s *MinioService) UploadDirectory(localPath, minioPath string, checkInterva
 	var jobs []fileJob
 	err := filepath.Walk(fullPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
+			// 处理权限错误
+			if os.IsPermission(err) {
+				log.Printf("权限不足 %s: %v", path, err)
+				return nil // 跳过此文件但继续处理
+			}
 			return err
 		}
 		// 跳过目录和.git文件夹
@@ -290,8 +312,10 @@ func (s *MinioService) UploadDirectory(localPath, minioPath string, checkInterva
 		if err != nil {
 			return err
 		}
+		// 规范化对象名称
 		objName := filepath.Join(minioPath, relPath)
-		objName = strings.ReplaceAll(objName, "\\", "/") // Windows 路径修正
+		// 统一使用 / 作为路径分隔符
+		objName = strings.ReplaceAll(objName, string(os.PathSeparator), "/")
 		jobs = append(jobs, fileJob{fullLocalPath: path, objectName: objName, info: info})
 		return nil
 	})
@@ -448,4 +472,27 @@ func (s *MinioService) GetPublicURL(objectPath string) string {
 		log.Printf("PreSign success: %s -> %s", objectPath, presignedURL.String())
 	}
 	return presignedURL.String()
+}
+
+// 修改权限检查和设置函数
+func ensureFilePermissions(path string) error {
+	// 获取文件信息
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+
+	// 设置目录权限
+	if info.IsDir() {
+		if err := os.Chmod(path, 0755); err != nil {
+			return fmt.Errorf("设置目录权限失败 %s: %v", path, err)
+		}
+	} else {
+		// 设置文件权限
+		if err := os.Chmod(path, 0644); err != nil {
+			return fmt.Errorf("设置文件权限失败 %s: %v", path, err)
+		}
+	}
+
+	return nil
 }
