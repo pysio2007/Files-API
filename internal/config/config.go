@@ -69,6 +69,7 @@ type Repository struct {
 	Branch        string `yaml:"branch"`
 	LocalPath     string `yaml:"localPath"`
 	MinioPath     string `yaml:"minioPath"`
+	DisabledSync  bool   `yaml:"disabledSync"`  // 新增：是否禁用同步
 	CheckInterval string `yaml:"checkInterval"` // 新增：仓库检查间隔
 }
 
@@ -125,7 +126,8 @@ func createDefaultConfig(path string) error {
 					Branch:        "main",
 					LocalPath:     "docs/repo1",
 					MinioPath:     "repo1",
-					CheckInterval: "1h", // 新增：默认检查间隔
+					DisabledSync:  false, // 默认启用同步
+					CheckInterval: "1h",  // 新增：默认检查间隔
 				},
 			},
 		},

@@ -169,6 +169,10 @@ func main() {
 		if !flags.Skip {
 			log.Printf("开始初始同步...")
 			for _, repo := range cfg.Git.Repositories {
+				if repo.DisabledSync {
+					log.Printf("仓库同步已禁用，跳过: %s", repo.URL)
+					continue
+				}
 				taskChan <- syncTask{
 					repo:         &repo,
 					gitService:   gitService,
@@ -188,6 +192,9 @@ func main() {
 			for range ticker.C {
 				log.Printf("开始定时同步...")
 				for _, repo := range cfg.Git.Repositories {
+					if repo.DisabledSync {
+						continue
+					}
 					log.Printf("正在等待同步仓库: %s", repo.URL)
 					taskChan <- syncTask{
 						repo:         &repo,
