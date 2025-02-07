@@ -767,6 +767,12 @@ done
 
 本项目采用 [AGPL-3.0](./LICENSE) 协议开源。
 
+## 更新记录
+
+- 增加 CORS 配置支持，可通过 configuration 中的 `server.allowOrigins` 自定义允许跨域的域名。
+- 更新 CORS 中间件实现，自动处理预检请求并返回正确的跨域头部。
+- 默认配置文件中已添加 `allowOrigins` 配置项，默认值为 `["http://localhost:8080"]`。
+
 <div align="center">
 
 ### 喜欢这个项目？请给它一个 ⭐️

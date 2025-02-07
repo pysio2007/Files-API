@@ -222,18 +222,21 @@ func main() {
 	// 添加：执行初始化同步
 	externalURLMiddleware.Init()
 
+	// 创建 CORS 中间件，使用配置文件中的 allowOrigins
+	corsMiddleware := middleware.NewCORSMiddleware(cfg.Server.AllowOrigins)
+
 	// 2. 处理 API 路由
 	if cfg.Server.EnableAPI {
 		apiHandler := handler.NewAPIHandler(minioService, cfg)
-		http.Handle("/api/files/", cacheMiddleware.Middleware(apiHandler))
+		http.Handle("/api/files/", corsMiddleware.Middleware(cacheMiddleware.Middleware(apiHandler)))
 		log.Printf("API 服务已启用: /api/files/")
 	}
 
 	// 3. 处理文件服务路由
 	if !cfg.Server.APIOnly {
 		docsHandler := handler.NewDocsHandler(minioService, cfg)
-		// 调整中间件顺序：外部URL中间件 -> 缓存中间件 -> 文档处理
-		http.Handle("/", externalURLMiddleware.Middleware(cacheMiddleware.Middleware(docsHandler)))
+		// 添加 CORS 中间件到处理链中
+		http.Handle("/", corsMiddleware.Middleware(externalURLMiddleware.Middleware(cacheMiddleware.Middleware(docsHandler))))
 		log.Printf("文件服务已启用: /")
 
 		// 记录外部URL配置

@@ -66,11 +66,12 @@ type ExternalURL struct {
 }
 
 type Server struct {
-	Port      int    `yaml:"port"`
-	Host      string `yaml:"host"`
-	EnableAPI bool   `yaml:"enableAPI"` // 新增：是否启用 API
-	APIOnly   bool   `yaml:"apiOnly"`   // 新增：仅启用 API
-	LegacyAPI bool   `yaml:"legacyAPI"` // 是否支持旧版API格式
+	Port         int      `yaml:"port"`
+	Host         string   `yaml:"host"`
+	EnableAPI    bool     `yaml:"enableAPI"`    // 新增：是否启用 API
+	APIOnly      bool     `yaml:"apiOnly"`      // 新增：仅启用 API
+	LegacyAPI    bool     `yaml:"legacyAPI"`    // 是否支持旧版API格式
+	AllowOrigins []string `yaml:"allowOrigins"` // 新增: CORS 允许的域名列表
 }
 
 type Minio struct {
@@ -132,6 +133,9 @@ func createDefaultConfig(path string) error {
 			EnableAPI: true,  // 默认启用 API
 			APIOnly:   false, // 默认不仅启用 API
 			LegacyAPI: false, // 默认不启用旧版API支持
+			AllowOrigins: []string{ // 新增: 默认允许的域名
+				"http://localhost:8080",
+			},
 		},
 		Minio: Minio{
 			Endpoint:     "play.min.io",

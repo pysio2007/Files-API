@@ -774,8 +774,15 @@ tail -f logs/Files-API-2025-02-05.log
 
 This project is licensed under the [AGPL-3.0](./LICENSE) License.
 
+## Changelog
+
+- Added CORS configuration support. You can now customize allowed origins via the `server.allowOrigins` configuration.
+- Updated the CORS middleware to automatically handle preflight requests and set proper headers.
+- The default configuration file now includes an `allowOrigins` entry with a default value of `["http://localhost:8080"]`.
+
 <div align="center">
 
 ### Like this project? Please give it a ⭐️
 
 </div>
+````
