@@ -13,8 +13,9 @@ type Config struct {
 	Git          Git            `yaml:"git"`
 	ExposedPaths []ExposedPath  `yaml:"exposedPaths"`
 	Logs         LogConfig      `yaml:"logs"`
-	Cache        CacheConfig    `yaml:"cache"`   // 新增缓存配置
-	Buckets      []BucketConfig `yaml:"buckets"` // 新增多桶配置
+	Cache        CacheConfig    `yaml:"cache"`        // 新增缓存配置
+	Buckets      []BucketConfig `yaml:"buckets"`      // 新增多桶配置
+	ExternalURLs []ExternalURL  `yaml:"externalURLs"` // 新增外部URL配置
 }
 
 // 新增：日志配置结构
@@ -52,6 +53,16 @@ type BucketConfig struct {
 	BucketName string `yaml:"bucketName"`
 	BasePath   string `yaml:"basePath"` // 基础路径
 	ReadOnly   bool   `yaml:"readOnly"` // 是否只读
+}
+
+// 添加新的配置结构
+type ExternalURL struct {
+	Path          string   `yaml:"path"`          // 访问路径
+	MainURL       string   `yaml:"mainURL"`       // 主URL
+	BackupURLs    []string `yaml:"backupURLs"`    // 备用URL列表
+	MinioPath     string   `yaml:"minioPath"`     // Minio存储路径
+	CacheControl  string   `yaml:"cacheControl"`  // 缓存控制,如 "no-cache" 或 "max-age=3600"
+	CheckInterval string   `yaml:"checkInterval"` // 检查间隔
 }
 
 type Server struct {
@@ -183,6 +194,16 @@ func createDefaultConfig(path string) error {
 				BucketName: "blog-assets",
 				BasePath:   "assets",
 				ReadOnly:   true,
+			},
+		},
+		ExternalURLs: []ExternalURL{
+			{
+				Path:          "/external/example.jpg",
+				MainURL:       "https://example.com/image.jpg",
+				BackupURLs:    []string{"https://backup1.com/image.jpg", "https://backup2.com/image.jpg"},
+				MinioPath:     "external/example.jpg",
+				CacheControl:  "max-age=3600",
+				CheckInterval: "1h",
 			},
 		},
 	}

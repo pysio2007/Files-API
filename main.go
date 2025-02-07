@@ -210,23 +210,38 @@ func main() {
 		log.Printf("API-only 模式，跳过文件同步任务")
 	}
 
-	// 在路由注册前初始化缓存中间件
+	// 设置路由
+	// 1. 初始化中间件
 	cacheMiddleware, err := middleware.NewCacheMiddleware(&cfg.Cache)
 	if err != nil {
 		log.Fatalf("初始化缓存中间件失败: %v", err)
 	}
 
-	// 设置路由
+	// 初始化外部URL中间件
+	externalURLMiddleware := middleware.NewExternalURLMiddleware(minioService, cfg)
+	// 添加：执行初始化同步
+	externalURLMiddleware.Init()
+
+	// 2. 处理 API 路由
 	if cfg.Server.EnableAPI {
 		apiHandler := handler.NewAPIHandler(minioService, cfg)
 		http.Handle("/api/files/", cacheMiddleware.Middleware(apiHandler))
 		log.Printf("API 服务已启用: /api/files/")
 	}
 
+	// 3. 处理文件服务路由
 	if !cfg.Server.APIOnly {
 		docsHandler := handler.NewDocsHandler(minioService, cfg)
-		http.Handle("/", cacheMiddleware.Middleware(docsHandler))
+		// 调整中间件顺序：外部URL中间件 -> 缓存中间件 -> 文档处理
+		http.Handle("/", externalURLMiddleware.Middleware(cacheMiddleware.Middleware(docsHandler)))
 		log.Printf("文件服务已启用: /")
+
+		// 记录外部URL配置
+		if len(cfg.ExternalURLs) > 0 {
+			for _, eu := range cfg.ExternalURLs {
+				log.Printf("已注册外部URL: %s -> %s", eu.Path, eu.MainURL)
+			}
+		}
 	}
 
 	// 两个服务都未启用时退出

@@ -182,6 +182,30 @@ cache:
     hitLog: true               # 记录缓存命中日志
 ```
 
+### 多桶配置
+
+支持配置多个存储桶以满足不同数据存储需求。每个桶配置项说明：
+- Name: 桶在配置中的标识，用于路由匹配。
+- Endpoint: 存储服务器地址。
+- AccessKey & SecretKey: 认证凭证。
+- UseSSL: 是否启用SSL。
+- BucketName: 实际桶名称。
+- BasePath: 桶中文件的基础路径（可留空）。
+- ReadOnly: 是否只读（只读存储桶不允许写入操作）。
+
+示例配置：
+```yaml
+buckets:
+  - name: "Images"            # 路由标识，如通过 /Images/ 访问
+    endpoint: "minioapi.example.com"
+    accessKey: "your-access-key"
+    secretKey: "your-secret-key"
+    useSSL: true
+    bucketName: "pysioimages"   # 实际的桶名称
+    basePath: ""                # 根目录
+    readOnly: true
+```
+
 ### 缓存配置进阶说明
 
 1. API 缓存控制
@@ -263,6 +287,7 @@ cache:
 ### 时间间隔格式说明
 
 支持的时间间隔格式：
+- `s`: 秒，例如：`"60s"` 表示60秒
 - `m`: 分钟，例如：`"10m"` 表示10分钟
 - `h`: 小时，例如：`"1h"` 表示1小时
 - `d`: 天，例如：`"1d"` 表示1天
@@ -331,20 +356,45 @@ logs:
      checkInterval: "1y"   # 1年
      ```
 
-### 多桶配置
+### 外部URL配置
 
-服务支持配置多个存储桶,每个桶可以有独立的配置:
+服务支持配置外部URL资源的自动同步和缓存：
 
 ```yaml
-minio:
-    buckets:
-        - name: "documents"
-          usePublicURL: true
-          maxWorkers: 16
-        - name: "images"
-          usePublicURL: false
-          maxWorkers: 8
+externalURLs:
+    - path: "/external/banner.jpg"      # 访问路径
+      mainURL: "https://example.com/banner.jpg"  # 主要下载地址
+      backupURLs:                       # 备用下载地址列表
+        - "https://backup1.com/banner.jpg"
+        - "https://backup2.com/banner.jpg"
+      minioPath: "external/banner.jpg"  # 在Minio中的存储路径
+      cacheControl: "max-age=3600"      # 缓存控制头，如 "no-cache" 或 "max-age=3600"
+      checkInterval: "1h"               # 更新检查间隔，可为 "1h", "1d" 等
+
+    - path: "/external/logo.png"
+      mainURL: "https://example.com/logo.png"
+      backupURLs: 
+        - "https://cdn.example.com/logo.png"
+      minioPath: "external/logo.png"
+      cacheControl: "no-cache"          # 禁用缓存
+      checkInterval: "1d"               # 每天检查一次
 ```
+
+配置说明：
+- path: 通过API访问时的路径
+- mainURL & backupURLs: 下载资源的主要和备用地址，当下载失败时依次尝试备用URL
+- minioPath: 文件在Minio存储的路径
+- cacheControl: 用于设置HTTP缓存头，推荐在调试时开启日志输出以便定位问题
+- checkInterval: 定时检查更新的时间间隔，建议根据资源的重要性设置合理的值
+
+工作原理：
+1. 首次请求时根据配置下载对应资源，并存储至Minio。
+2. 按照checkInterval定期检查文件是否已更新，若下载失败则自动尝试备用地址。
+3. 用户可通过更新日志和错误提示进行调试，确保Minio的写入权限和网络连接正常。
+
+调试建议：
+- 如果资源未更新，请检查外部URL是否可访问以及网络是否通畅。
+- 对于缓存问题，可使用 curl 命令中的 -H "Cache-Control: no-cache" 测试绕过本地缓存。
 
 ## 特殊启动参数
 

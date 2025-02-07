@@ -124,17 +124,26 @@ cache:
 
 ### Multi-Bucket Configuration
 
-The service supports configuring multiple storage buckets, each with its own settings:
+The service supports configuring multiple storage buckets to meet different data storage requirements. Each bucket configuration includes:
+- Name: Identifier used for routing.
+- Endpoint: Storage server address.
+- AccessKey & SecretKey: Credentials for authentication.
+- UseSSL: Whether to use SSL.
+- BucketName: Actual bucket name.
+- BasePath: Base path for files in the bucket (can be empty).
+- ReadOnly: Indicates if the bucket is read-only.
 
+Example configuration:
 ```yaml
-minio:
-    buckets:
-        - name: "documents"
-          usePublicURL: true
-          maxWorkers: 16
-        - name: "images"
-          usePublicURL: false
-          maxWorkers: 8
+buckets:
+  - name: "Images"            # Routing identifier; accessed via /Images/
+    endpoint: "minioapi.example.com"
+    accessKey: "your-access-key"
+    secretKey: "your-secret-key"
+    useSSL: true
+    bucketName: "pysioimages"   # Actual bucket name
+    basePath: ""                # Root directory
+    readOnly: true
 ```
 
 ### Service Modes
@@ -275,12 +284,56 @@ cache:
 ### Time Interval Format
 
 Supported time interval formats:
+- `s`: seconds, e.g., `"60s"` for 60 seconds  
 - `m`: minutes, e.g., `"10m"` for 10 minutes
 - `h`: hours, e.g., `"1h"` for 1 hour
 - `d`: days, e.g., `"1d"` for 1 day
 - `y`: years, e.g., `"1y"` for 1 year
 
+External URL supports high-frequency checks:
+
 Default is 10 minutes if not configured or invalid.
+
+### External URL Configuration
+
+The service supports automatic synchronization and caching of external URL resources:
+
+```yaml
+externalURLs:
+    - path: "/external/banner.jpg"      # Access path
+      mainURL: "https://example.com/banner.jpg"  # Primary download URL
+      backupURLs:                       # List of backup URLs
+        - "https://backup1.com/banner.jpg"
+        - "https://backup2.com/banner.jpg"
+      minioPath: "external/banner.jpg"  # Minio storage path
+      cacheControl: "max-age=3600"      # Cache control header (e.g., "no-cache" or "max-age=3600")
+      checkInterval: "1h"               # Update check interval (e.g., "1h", "1d")
+
+    - path: "/external/logo.png"
+      mainURL: "https://example.com/logo.png"
+      backupURLs: 
+        - "https://cdn.example.com/logo.png"
+      minioPath: "external/logo.png"
+      cacheControl: "no-cache"          # Disable caching
+      checkInterval: "1d"               # Check once per day
+```
+
+Configuration Details:
+- path: API access path for the external resource
+- mainURL & backupURLs: Primary and backup download URLs; in case the main URL fails, backups are attempted in order.
+- minioPath: The target storage path in Minio.
+- cacheControl: Sets the HTTP cache header; enable detailed logging during troubleshooting.
+- checkInterval: Frequency to check for file updates. Use an appropriate value based on the importance of the resource.
+
+How it works:
+1. On the first access, the resource is downloaded and stored in Minio.
+2. Later, the system checks for updates based on the checkInterval and automatically retries with backup URLs on failure.
+3. Users can monitor logs and error messages to debug issues, ensuring proper Minio write permissions and network connectivity.
+
+Troubleshooting Tips:
+- If the resource does not update, verify that the external URLs are reachable and the network is reliable.
+- To bypass browser caching during testing, use: 
+  curl -H "Cache-Control: no-cache" http://localhost:8080/external/banner.jpg
 
 ## Special Launch Parameters
 

@@ -529,3 +529,18 @@ func (s *MinioService) GetObjectFromBucket(bucketName, objectPath string) (*mini
 	}
 	return nil, fmt.Errorf("bucket not found: %s", bucketName)
 }
+
+// 新增PutObject方法
+func (s *MinioService) PutObject(objectName string, reader io.Reader, size int64, metadata map[string]string) (minio.UploadInfo, error) {
+	return s.client.PutObject(
+		context.Background(),
+		s.config.Minio.Bucket,
+		objectName,
+		reader,
+		size,
+		minio.PutObjectOptions{
+			ContentType:  getContentType(objectName),
+			UserMetadata: metadata,
+		},
+	)
+}

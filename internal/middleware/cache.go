@@ -65,6 +65,8 @@ func parseDuration(duration string) (time.Duration, error) {
 	}
 
 	switch strings.ToLower(unit) {
+	case "s": // 新增：支持秒单位
+		return time.Duration(value) * time.Second, nil
 	case "m":
 		return time.Duration(value) * time.Minute, nil
 	case "h":
