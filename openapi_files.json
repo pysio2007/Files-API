@@ -1,0 +1,575 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Files-API",
+    "description": "Pysio Files API服务，用于管理和访问文件存储",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Pysio",
+      "url": "https://pysio.online"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://files.pysio.online",
+      "description": "生产环境API服务器"
+    },
+    {
+      "url": "https://www.pysio.online",
+      "description": "允许的跨域来源"
+    },
+    {
+      "url": "https://pysio.online",
+      "description": "允许的跨域来源"
+    },
+    {
+      "url": "http://localhost:8080",
+      "description": "本地开发环境"
+    }
+  ],
+  "tags": [
+    {
+      "name": "files",
+      "description": "文件操作API"
+    },
+    {
+      "name": "sync",
+      "description": "同步状态API"
+    }
+  ],
+  "paths": {
+    "/api/files/{path}": {
+      "get": {
+        "tags": ["files"],
+        "summary": "获取指定路径下的文件列表",
+        "description": "返回指定路径下的文件和目录列表，支持分页",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "description": "文件路径",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "description": "页码，默认为1",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "每页大小，默认为20，最大为100",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功获取文件列表",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileListResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "服务器错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/sync/status": {
+      "get": {
+        "tags": ["sync"],
+        "summary": "获取所有仓库的同步状态",
+        "description": "返回所有配置的Git仓库的同步状态信息",
+        "responses": {
+          "200": {
+            "description": "成功获取同步状态",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncStatusResponse"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "方法不允许",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/Pysio-FontAwesome/{path}": {
+      "get": {
+        "tags": ["files"],
+        "summary": "获取Pysio-FontAwesome仓库中的文件",
+        "description": "直接获取Pysio-FontAwesome仓库中的文件内容",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "description": "文件路径",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功获取文件内容",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "文件不存在"
+          }
+        }
+      }
+    },
+    "/Avatar/{path}": {
+      "get": {
+        "tags": ["files"],
+        "summary": "获取Avatar仓库中的文件",
+        "description": "直接获取Avatar仓库中的文件内容",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "description": "文件路径",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功获取文件内容",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "文件不存在"
+          }
+        }
+      }
+    },
+    "/Images/{path}": {
+      "get": {
+        "tags": ["files"],
+        "summary": "获取Images存储桶中的文件",
+        "description": "直接获取Images存储桶中的文件内容",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "description": "文件路径",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功获取文件内容",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "文件不存在"
+          }
+        }
+      }
+    },
+    "/status/summary.json": {
+      "get": {
+        "tags": ["files"],
+        "summary": "获取状态摘要",
+        "description": "获取从外部URL同步的状态摘要信息",
+        "responses": {
+          "200": {
+            "description": "成功获取状态摘要",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "文件不存在"
+          }
+        }
+      }
+    },
+    "/{bucket}/{path}": {
+      "patch": {
+        "tags": ["files"],
+        "summary": "获取指定桶中的文件信息",
+        "description": "获取指定存储桶中的文件信息",
+        "parameters": [
+          {
+            "name": "bucket",
+            "in": "path",
+            "description": "存储桶名称",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "path",
+            "in": "path",
+            "description": "文件路径",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "文件请求信息",
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功获取文件信息",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileInfoResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "无效的请求格式",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "存储桶为只读",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "文件或存储桶不存在",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/{path}": {
+      "get": {
+        "tags": ["files"],
+        "summary": "获取文件内容",
+        "description": "直接获取文件内容，支持从配置的仓库或暴露路径访问",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "path",
+            "description": "文件路径",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功获取文件内容",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "302": {
+            "description": "重定向到文件的公共URL"
+          },
+          "403": {
+            "description": "未授权的访问路径"
+          },
+          "404": {
+            "description": "文件不存在"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "FileListResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "example": 200
+          },
+          "message": {
+            "type": "string",
+            "example": "success"
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FileInfo"
+            }
+          },
+          "pagination": {
+            "$ref": "#/components/schemas/Pagination"
+          }
+        }
+      },
+      "FileInfoResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "example": 200
+          },
+          "message": {
+            "type": "string",
+            "example": "success"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FileInfo"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "example": 500
+          },
+          "message": {
+            "type": "string",
+            "example": "服务器错误"
+          }
+        }
+      },
+      "FileInfo": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "文件名",
+            "example": "example.jpg"
+          },
+          "path": {
+            "type": "string",
+            "description": "完整路径",
+            "example": "images/example.jpg"
+          },
+          "size": {
+            "type": "integer",
+            "description": "文件大小（字节）",
+            "example": 1024
+          },
+          "lastModified": {
+            "type": "string",
+            "format": "date-time",
+            "description": "最后修改时间",
+            "example": "2023-01-01T12:00:00Z"
+          },
+          "isDirectory": {
+            "type": "boolean",
+            "description": "是否是目录",
+            "example": false
+          },
+          "url": {
+            "type": "string",
+            "description": "访问URL（仅文件有）",
+            "example": "https://files.pysio.online/images/example.jpg"
+          }
+        }
+      },
+      "Pagination": {
+        "type": "object",
+        "properties": {
+          "current": {
+            "type": "integer",
+            "description": "当前页",
+            "example": 1
+          },
+          "pageSize": {
+            "type": "integer",
+            "description": "每页大小",
+            "example": 20
+          },
+          "total": {
+            "type": "integer",
+            "description": "总条数",
+            "example": 100
+          }
+        }
+      },
+      "SyncStatus": {
+        "type": "object",
+        "properties": {
+          "lastSync": {
+            "type": "string",
+            "format": "date-time",
+            "description": "最后同步时间",
+            "example": "2023-01-01T12:00:00Z"
+          },
+          "nextSync": {
+            "type": "string",
+            "format": "date-time",
+            "description": "下次同步时间",
+            "example": "2023-01-01T13:00:00Z"
+          },
+          "progress": {
+            "type": "number",
+            "description": "同步进度(0-100)",
+            "example": 75.5
+          },
+          "totalFiles": {
+            "type": "integer",
+            "description": "总文件数",
+            "example": 100
+          },
+          "currentFiles": {
+            "type": "integer",
+            "description": "已处理文件数",
+            "example": 75
+          },
+          "status": {
+            "type": "string",
+            "description": "同步状态(idle/syncing/error)",
+            "example": "syncing"
+          },
+          "error": {
+            "type": "string",
+            "description": "错误信息",
+            "example": ""
+          }
+        }
+      },
+      "SyncStatusResponse": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "integer",
+            "example": 200
+          },
+          "message": {
+            "type": "string",
+            "example": "success"
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/SyncStatus"
+            },
+            "example": {
+              "repo1": {
+                "lastSync": "2023-01-01T12:00:00Z",
+                "nextSync": "2023-01-01T13:00:00Z",
+                "progress": 75.5,
+                "totalFiles": 100,
+                "currentFiles": 75,
+                "status": "syncing",
+                "error": ""
+              }
+            }
+          }
+        }
+      },
+      "PatchRequest": {
+        "type": "object",
+        "properties": {
+          "bucket": {
+            "type": "string",
+            "description": "存储桶名称",
+            "example": "Images"
+          },
+          "path": {
+            "type": "string",
+            "description": "文件路径",
+            "example": "example.jpg"
+          }
+        },
+        "required": ["bucket", "path"]
+      }
+    }
+  }
+} 
